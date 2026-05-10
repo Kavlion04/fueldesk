@@ -38,19 +38,31 @@ const PAYMENTS = [
 type FuelId = typeof FUELS[number]["id"];
 type PayId = typeof PAYMENTS[number]["id"];
 
+type SideMap = Record<FuelId, { a: string; b: string }>;
+const emptySides: SideMap = {
+  "92k4": { a: "", b: "" },
+  "92k5": { a: "", b: "" },
+  "95":   { a: "", b: "" },
+  "98":   { a: "", b: "" },
+};
+
 function HomePage() {
   const [open, setOpen] = useState(false);
-  const [tops, setTops] = useState<Record<FuelId, string>>({ "92k4": "", "92k5": "", "95": "", "98": "" });
-  const [bots, setBots] = useState<Record<FuelId, string>>({ "92k4": "", "92k5": "", "95": "", "98": "" });
+  const [tops, setTops] = useState<SideMap>(emptySides);
+  const [bots, setBots] = useState<SideMap>(emptySides);
   const [pays, setPays] = useState<Record<PayId, string>>({ online: "", terminal: "", yandex: "", other: "" });
 
   const rows = useMemo(() =>
     FUELS.map((f) => {
-      const top = toNum(tops[f.id]);
-      const bot = toNum(bots[f.id]);
-      const liters = Math.abs(bot - top);
+      const topA = toNum(tops[f.id].a);
+      const topB = toNum(tops[f.id].b);
+      const botA = toNum(bots[f.id].a);
+      const botB = toNum(bots[f.id].b);
+      const topSum = topA + topB;
+      const botSum = botA + botB;
+      const liters = Math.abs(botSum - topSum);
       const subtotal = liters * f.price;
-      return { ...f, top, bot, liters, subtotal };
+      return { ...f, topA, topB, botA, botB, topSum, botSum, liters, subtotal };
     }),
     [tops, bots]
   );
