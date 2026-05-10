@@ -78,25 +78,6 @@ function HomePage() {
               4 ta yoqilg'i bo'yicha sanoq, hisob va to'lovlar — bir ekranda, xatosiz.
             </p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
-            {FUELS.map((f) => (
-              <motion.div
-                key={f.id}
-                whileHover={{ y: -3 }}
-                className="glass rounded-2xl p-3 border border-border/60 min-w-[120px]"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full" style={{ background: f.color }} />
-                  <span className="text-xs text-muted-foreground">
-                    {f.name}{f.grade && <span className="ml-1 opacity-70">{f.grade}</span>}
-                  </span>
-                </div>
-                <div className="num-display text-lg font-bold mt-1">
-                  {fmt(f.price)}<span className="text-xs text-muted-foreground ml-1">so'm/L</span>
-                </div>
-              </motion.div>
-            ))}
-          </div>
         </section>
 
         {/* Toggle */}
