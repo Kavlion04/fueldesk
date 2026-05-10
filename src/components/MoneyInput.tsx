@@ -1,15 +1,15 @@
 import { motion } from "framer-motion";
-import { fmt, sanitize7, toNum } from "@/lib/format";
+import { sanitize7 } from "@/lib/format";
 
 interface Props {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  hint?: string;
   accent?: string;
+  placeholder?: string;
 }
 
-export function MoneyInput({ label, value, onChange, hint, accent }: Props) {
+export function MoneyInput({ label, value, onChange, accent, placeholder = "0" }: Props) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -23,25 +23,16 @@ export function MoneyInput({ label, value, onChange, hint, accent }: Props) {
           {label}
         </span>
         {accent && (
-          <span
-            className="h-1.5 w-1.5 rounded-full"
-            style={{ background: accent }}
-          />
+          <span className="h-1.5 w-1.5 rounded-full" style={{ background: accent }} />
         )}
       </div>
       <input
         inputMode="numeric"
         value={value}
         onChange={(e) => onChange(sanitize7(e.target.value))}
-        placeholder="0"
+        placeholder={placeholder}
         className="w-full bg-transparent num-display text-xl font-semibold text-foreground outline-none placeholder:text-muted-foreground/40"
       />
-      {hint && (
-        <div className="text-[11px] text-muted-foreground mt-1 num-display">
-          = {fmt(toNum(value) * 0)} {/* keep layout */}
-          {hint}
-        </div>
-      )}
     </motion.div>
   );
 }
