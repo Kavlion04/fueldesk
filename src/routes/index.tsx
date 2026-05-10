@@ -112,10 +112,10 @@ function HomePage() {
               </div>
             </div>
           </div>
-          {totalLiters > 0 && (
+          {totalRevenue > 0 && (
             <div className="text-right">
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Jami litr</div>
-              <div className="num-display text-xl font-bold text-primary">{fmt(totalLiters)} L</div>
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Jami summa</div>
+              <div className="num-display text-xl font-bold text-primary">{fmt(totalRevenue)}</div>
             </div>
           )}
         </motion.button>
