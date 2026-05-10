@@ -140,12 +140,23 @@ function HomePage() {
                   <Grid>
                     {FUELS.map((f) => (
                       <FuelHeader key={f.id} f={f}>
-                        <MeterInput
-                          label="Top"
-                          tone="top"
-                          value={tops[f.id]}
-                          onChange={(v) => setTops((s) => ({ ...s, [f.id]: v }))}
-                        />
+                        <div className="space-y-2">
+                          <MeterInput
+                            label="A tomon"
+                            tone="top"
+                            value={tops[f.id].a}
+                            onChange={(v) => setTops((s) => ({ ...s, [f.id]: { ...s[f.id], a: v } }))}
+                          />
+                          <MeterInput
+                            label="B tomon"
+                            tone="top"
+                            value={tops[f.id].b}
+                            onChange={(v) => setTops((s) => ({ ...s, [f.id]: { ...s[f.id], b: v } }))}
+                          />
+                          <div className="text-[10px] text-muted-foreground px-1 num-display">
+                            Σ {fmt(toNum(tops[f.id].a) + toNum(tops[f.id].b))}
+                          </div>
+                        </div>
                       </FuelHeader>
                     ))}
                   </Grid>
@@ -155,17 +166,28 @@ function HomePage() {
                 <Section
                   index="02"
                   title="Yakuniy sanoq"
-                  subtitle="Smena oxiridagi 7-xonali ko'rsatkich"
+                  subtitle="Smena oxiridagi 7-xonali ko'rsatkich (A + B tomon)"
                 >
                   <Grid>
                     {FUELS.map((f) => (
                       <FuelHeader key={f.id} f={f}>
-                        <MeterInput
-                          label="Bottom"
-                          tone="bottom"
-                          value={bots[f.id]}
-                          onChange={(v) => setBots((s) => ({ ...s, [f.id]: v }))}
-                        />
+                        <div className="space-y-2">
+                          <MeterInput
+                            label="A tomon"
+                            tone="bottom"
+                            value={bots[f.id].a}
+                            onChange={(v) => setBots((s) => ({ ...s, [f.id]: { ...s[f.id], a: v } }))}
+                          />
+                          <MeterInput
+                            label="B tomon"
+                            tone="bottom"
+                            value={bots[f.id].b}
+                            onChange={(v) => setBots((s) => ({ ...s, [f.id]: { ...s[f.id], b: v } }))}
+                          />
+                          <div className="text-[10px] text-muted-foreground px-1 num-display">
+                            Σ {fmt(toNum(bots[f.id].a) + toNum(bots[f.id].b))}
+                          </div>
+                        </div>
                       </FuelHeader>
                     ))}
                   </Grid>
