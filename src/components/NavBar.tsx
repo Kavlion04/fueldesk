@@ -1,5 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { motion } from "framer-motion";
+import { InstallButton } from "./InstallButton";
 
 const tabs = [
   { to: "/", label: "Stansiya" },
@@ -25,31 +26,34 @@ export function NavBar() {
             </div>
           </div>
         </Link>
-        <nav className="flex gap-1 p-1 rounded-full bg-secondary/60 border border-border/60">
-          {tabs.map((t) => {
-            const active = pathname === t.to;
-            return (
-              <Link
-                key={t.to}
-                to={t.to}
-                className="relative px-4 py-1.5 text-xs font-semibold rounded-full"
-              >
-                {active && (
-                  <motion.div
-                    layoutId="nav-pill"
-                    className="absolute inset-0 grad-primary rounded-full"
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                  />
-                )}
-                <span
-                  className={`relative ${active ? "text-primary-foreground" : "text-muted-foreground"}`}
+        <div className="flex items-center gap-2">
+          <nav className="flex gap-1 p-1 rounded-full bg-secondary/60 border border-border/60">
+            {tabs.map((t) => {
+              const active = pathname === t.to;
+              return (
+                <Link
+                  key={t.to}
+                  to={t.to}
+                  className="relative px-4 py-1.5 text-xs font-semibold rounded-full"
                 >
-                  {t.label}
-                </span>
-              </Link>
-            );
-          })}
-        </nav>
+                  {active && (
+                    <motion.div
+                      layoutId="nav-pill"
+                      className="absolute inset-0 grad-primary rounded-full"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                  <span
+                    className={`relative ${active ? "text-primary-foreground" : "text-muted-foreground"}`}
+                  >
+                    {t.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
+          <InstallButton />
+        </div>
       </div>
     </header>
   );
