@@ -30,7 +30,7 @@ export function MoneyInput({ label, value, onChange, accent, placeholder = "0", 
       <input
         inputMode="numeric"
         value={value}
-        onChange={(e) => onChange(sanitize7(e.target.value))}
+        onChange={(e) => onChange(sanitizeN(e.target.value, maxLen))}
         placeholder={placeholder}
         className="w-full bg-transparent num-display text-xl font-semibold text-foreground outline-none placeholder:text-muted-foreground/40"
       />
