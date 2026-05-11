@@ -84,9 +84,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:description", content: "FuelDesk - fuel accounting software" },
       { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/7xLcAmR39GX614avBfM3F8ZCdhx1/social-images/social-1778393445910-1000003392.webp" },
       { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/7xLcAmR39GX614avBfM3F8ZCdhx1/social-images/social-1778393445910-1000003392.webp" },
+      { name: "theme-color", content: "#0b0f1a" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "FuelDesk" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      { rel: "manifest", href: "/manifest.json" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
