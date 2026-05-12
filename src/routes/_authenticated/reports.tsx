@@ -109,7 +109,7 @@ function ReportsPage() {
                     tickFormatter={(v) => (v >= 1_000_000 ? (v / 1_000_000).toFixed(1) + "M" : (v / 1000).toFixed(0) + "k")} />
                   <Tooltip
                     contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 12 }}
-                    formatter={(v: number) => fmt(v)}
+                    formatter={(v: any) => fmt(Number(v))}
                   />
                   <Bar dataKey="revenue" fill="var(--color-primary)" radius={[6, 6, 0, 0]} name="Summa" />
                   <Bar dataKey="paid" fill="var(--color-accent)" radius={[6, 6, 0, 0]} name="To'lov" />
