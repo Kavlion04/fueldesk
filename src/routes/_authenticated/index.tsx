@@ -1,0 +1,499 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { NavBar } from "@/components/NavBar";
+import { MeterInput } from "@/components/MeterInput";
+import { MoneyInput } from "@/components/MoneyInput";
+import { NumberCard } from "@/components/NumberCard";
+import { fmt, fmtSigned, toNum } from "@/lib/format";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+
+export const Route = createFileRoute("/_authenticated/")({
+  head: () => ({
+    meta: [
+      { title: "FuelDesk — Smena hisob-kitobi" },
+      { name: "description", content: "Yoqilg'i shahobchasi smena yopish kalkulyatori." },
+    ],
+  }),
+  component: HomePage,
+});
+
+const FUELS = [
+  { id: "92k4", name: "Ai-92", grade: "K4", price: 10800, color: "var(--color-fuel-92k4)" },
+  { id: "92k5", name: "Ai-92", grade: "K5", price: 11400, color: "var(--color-fuel-92k5)" },
+  { id: "95",   name: "Ai-95", grade: "",   price: 13000, color: "var(--color-fuel-95)"   },
+  { id: "98",   name: "Ai-98", grade: "",   price: 16800, color: "var(--color-fuel-98)"   },
+] as const;
+
+const PAYMENTS = [
+  { id: "online",   label: "Online karta" },
+  { id: "terminal", label: "Terminal" },
+  { id: "yandex",   label: "Yandex" },
+  { id: "other",    label: "Boshqa" },
+] as const;
+
+type FuelId = typeof FUELS[number]["id"];
+type PayId = typeof PAYMENTS[number]["id"];
+type SideMap = Record<FuelId, { a: string; b: string }>;
+const emptySides: SideMap = {
+  "92k4": { a: "", b: "" }, "92k5": { a: "", b: "" },
+  "95":   { a: "", b: "" }, "98":   { a: "", b: "" },
+};
+const emptyPays: Record<PayId, string> = { online: "", terminal: "", yandex: "", other: "" };
+const DRAFT_KEY = "fueldesk:draft";
+
+interface DbShift {
+  id: string;
+  shift_number: number | null;
+  shift_date: string;
+  operator_name: string | null;
+  tops: SideMap;
+  bots: SideMap;
+  pays: Record<PayId, string>;
+  total_revenue: number;
+  total_paid: number;
+  diff: number;
+  deficit_reason: string | null;
+  created_at: string;
+}
+
+function loadJSON<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) as T : fallback; }
+  catch { return fallback; }
+}
+
+function HomePage() {
+  const { user, displayName } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [tops, setTops] = useState<SideMap>(emptySides);
+  const [bots, setBots] = useState<SideMap>(emptySides);
+  const [pays, setPays] = useState<Record<PayId, string>>(emptyPays);
+  const [deficitReason, setDeficitReason] = useState("");
+  const [shifts, setShifts] = useState<DbShift[]>([]);
+  const [detail, setDetail] = useState<DbShift | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [nextNumber, setNextNumber] = useState<number>(1);
+
+  useEffect(() => {
+    const draft = loadJSON<{ tops: SideMap; bots: SideMap; pays: Record<PayId, string>; open?: boolean; deficitReason?: string } | null>(DRAFT_KEY, null);
+    if (draft) {
+      setTops(draft.tops ?? emptySides);
+      setBots(draft.bots ?? emptySides);
+      setPays(draft.pays ?? emptyPays);
+      setDeficitReason(draft.deficitReason ?? "");
+      if (draft.open) setOpen(true);
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ tops, bots, pays, open, deficitReason }));
+  }, [tops, bots, pays, open, deficitReason, hydrated]);
+
+  const fetchShifts = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("shifts")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (data) {
+      setShifts(data as unknown as DbShift[]);
+      const max = data.reduce((m, s: any) => Math.max(m, s.shift_number ?? 0), 0);
+      setNextNumber(max + 1);
+    }
+  };
+
+  useEffect(() => { fetchShifts(); }, [user?.id]);
+
+  const rows = useMemo(() =>
+    FUELS.map((f) => {
+      const topSum = toNum(tops[f.id].a) + toNum(tops[f.id].b);
+      const botSum = toNum(bots[f.id].a) + toNum(bots[f.id].b);
+      const liters = Math.abs(botSum - topSum);
+      return { ...f, topSum, botSum, liters, subtotal: liters * f.price };
+    }), [tops, bots]);
+
+  const totalRevenue = rows.reduce((s, r) => s + r.subtotal, 0);
+  const totalPaid = PAYMENTS.reduce((s, p) => s + toNum(pays[p.id]), 0);
+  const diff = totalPaid - totalRevenue;
+  const isDeficit = diff < 0;
+
+  const saveSession = async () => {
+    if (!user) return;
+    if (isDeficit && !deficitReason.trim()) {
+      alert("Defitsit bor — sababini yozing.");
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase.from("shifts").insert({
+      user_id: user.id,
+      operator_name: displayName,
+      tops, bots, pays,
+      total_revenue: totalRevenue,
+      total_paid: totalPaid,
+      diff,
+      deficit_reason: isDeficit ? deficitReason.trim() : null,
+    });
+    setSaving(false);
+    if (error) { alert("Xatolik: " + error.message); return; }
+    setTops(emptySides); setBots(emptySides); setPays(emptyPays);
+    setDeficitReason(""); setOpen(false);
+    await fetchShifts();
+  };
+
+  const removeSession = async (id: string) => {
+    if (!confirm("Smenani o'chirasizmi?")) return;
+    await supabase.from("shifts").delete().eq("id", id);
+    setDetail(null);
+    fetchShifts();
+  };
+
+  return (
+    <div className="min-h-screen">
+      <NavBar />
+      <main className="max-w-6xl mx-auto px-5 py-8">
+        <section className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-8">
+          <div>
+            <motion.h1
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+              className="text-3xl md:text-5xl font-black tracking-tight"
+            >
+              Smena #{nextNumber}<span className="text-primary">.</span>
+            </motion.h1>
+            <p className="text-muted-foreground mt-2 max-w-md">
+              {displayName ? <>Operator: <span className="text-foreground font-semibold">{displayName}</span> · </> : null}
+              {new Date().toLocaleDateString("ru-RU", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+            </p>
+          </div>
+        </section>
+
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={() => setOpen((v) => !v)}
+          className="w-full glass rounded-2xl border border-border/60 px-5 py-4 flex items-center justify-between group hover:border-primary/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <motion.span animate={{ rotate: open ? 45 : 0 }}
+              className="h-9 w-9 rounded-xl grad-primary grid place-items-center text-primary-foreground text-xl font-bold glow">+</motion.span>
+            <div className="text-left">
+              <div className="font-bold">Hisob-kitobni ochish</div>
+              <div className="text-xs text-muted-foreground">Sanoq, litr, summa va to'lovlar</div>
+            </div>
+          </div>
+          {totalRevenue > 0 && (
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Jami summa</div>
+              <div className="num-display text-xl font-bold text-primary">{fmt(totalRevenue)}</div>
+            </div>
+          )}
+        </motion.button>
+
+        <AnimatePresence initial={false}>
+          {open && (
+            <motion.div key="panel"
+              initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden"
+            >
+              <div className="pt-6 space-y-8">
+                <Section index="01" title="Boshlang'ich sanoq" subtitle="Smena boshidagi 7-xonali ko'rsatkich">
+                  <Grid>
+                    {FUELS.map((f) => (
+                      <FuelHeader key={f.id} f={f}>
+                        <div className="space-y-2">
+                          <MeterInput label="A tomon" tone="top" value={tops[f.id].a}
+                            onChange={(v) => setTops((s) => ({ ...s, [f.id]: { ...s[f.id], a: v } }))} />
+                          <MeterInput label="B tomon" tone="top" value={tops[f.id].b}
+                            onChange={(v) => setTops((s) => ({ ...s, [f.id]: { ...s[f.id], b: v } }))} />
+                          <div className="text-[10px] text-muted-foreground px-1 num-display">
+                            Σ {fmt(toNum(tops[f.id].a) + toNum(tops[f.id].b))}
+                          </div>
+                        </div>
+                      </FuelHeader>
+                    ))}
+                  </Grid>
+                </Section>
+
+                <Section index="02" title="Yakuniy sanoq" subtitle="Smena oxiridagi 7-xonali ko'rsatkich (A + B tomon)">
+                  <Grid>
+                    {FUELS.map((f) => (
+                      <FuelHeader key={f.id} f={f}>
+                        <div className="space-y-2">
+                          <MeterInput label="A tomon" tone="bottom" value={bots[f.id].a}
+                            onChange={(v) => setBots((s) => ({ ...s, [f.id]: { ...s[f.id], a: v } }))} />
+                          <MeterInput label="B tomon" tone="bottom" value={bots[f.id].b}
+                            onChange={(v) => setBots((s) => ({ ...s, [f.id]: { ...s[f.id], b: v } }))} />
+                          <div className="text-[10px] text-muted-foreground px-1 num-display">
+                            Σ {fmt(toNum(bots[f.id].a) + toNum(bots[f.id].b))}
+                          </div>
+                        </div>
+                      </FuelHeader>
+                    ))}
+                  </Grid>
+                </Section>
+
+                <Section index="03" title="Litr × narx" subtitle="|Yakuniy − Boshlang'ich| × narx"
+                  right={
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Jami summa</div>
+                      <div className="num-display text-2xl font-black text-primary">{fmt(totalRevenue)}</div>
+                    </div>
+                  }>
+                  <Grid>
+                    {rows.map((r) => (
+                      <motion.div key={r.id} layout className="glass rounded-2xl border border-border/60 p-4"
+                        style={{ boxShadow: `inset 0 0 0 1px ${r.color}22` }}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full" style={{ background: r.color }} />
+                            <span className="text-xs font-semibold">{r.name}{r.grade && <span className="opacity-60 ml-1">{r.grade}</span>}</span>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground num-display">{fmt(r.price)} so'm/L</span>
+                        </div>
+                        <div className="num-display text-sm text-muted-foreground">{fmt(r.liters)} L</div>
+                        <div className="num-display text-2xl font-bold mt-1">{fmt(r.subtotal)}</div>
+                      </motion.div>
+                    ))}
+                  </Grid>
+                </Section>
+
+                <Section index="04" title="To'lovlar" subtitle="Online, terminal, Yandex va boshqa (8-xonali son)"
+                  right={
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Jami to'lovlar</div>
+                      <div className="num-display text-2xl font-black text-accent">{fmt(totalPaid)}</div>
+                    </div>
+                  }>
+                  <Grid>
+                    {PAYMENTS.map((p) => (
+                      <MoneyInput key={p.id} label={p.label} value={pays[p.id]} maxLen={8}
+                        onChange={(v) => setPays((s) => ({ ...s, [p.id]: v }))}
+                        accent="var(--color-accent)" />
+                    ))}
+                  </Grid>
+                </Section>
+
+                <motion.section layout className="glass rounded-3xl border border-border/60 p-6 md:p-8 relative overflow-hidden">
+                  <div className="absolute -inset-px rounded-3xl pointer-events-none opacity-40"
+                    style={{
+                      background: diff > 0
+                        ? "radial-gradient(ellipse at top, var(--color-success) 0%, transparent 60%)"
+                        : diff < 0
+                        ? "radial-gradient(ellipse at top, var(--color-destructive) 0%, transparent 60%)"
+                        : "radial-gradient(ellipse at top, var(--color-muted) 0%, transparent 60%)",
+                    }} />
+                  <div className="relative grid md:grid-cols-3 gap-4">
+                    <NumberCard label="Jami summa (litr×narx)" value={totalRevenue} tone="primary" suffix="so'm" />
+                    <NumberCard label="Jami to'lovlar" value={totalPaid} tone="accent" suffix="so'm" />
+                    <motion.div key={diff} initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                      className="rounded-2xl p-4 border border-border/60 bg-background/40">
+                      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Farq (to'lovlar − summa)</div>
+                      <div className={`num-display mt-1 text-3xl font-black ${
+                        diff > 0 ? "text-success" : diff < 0 ? "text-destructive" : "text-foreground"
+                      }`}>
+                        {fmtSigned(diff)}<span className="ml-1 text-sm text-muted-foreground font-normal">so'm</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {diff > 0 ? "Ortiqcha (profitsit)" : diff < 0 ? "Kam (defitsit)" : "Aynan teng"}
+                      </div>
+                    </motion.div>
+                  </div>
+
+                  {/* Deficit reason */}
+                  <AnimatePresence>
+                    {isDeficit && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                        className="relative mt-5 overflow-hidden"
+                      >
+                        <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
+                          <div className="text-[10px] uppercase tracking-widest text-destructive font-bold mb-2">
+                            ⚠️ Defitsit aniqlandi — sababini yozing
+                          </div>
+                          <textarea value={deficitReason} onChange={(e) => setDeficitReason(e.target.value)}
+                            rows={2} placeholder="Masalan: terminal ishlamadi, qaytim noto'g'ri berildi…"
+                            className="w-full bg-background/60 border border-border/60 rounded-xl px-3 py-2 text-sm outline-none focus:border-destructive/60 resize-none" />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.section>
+
+                <div className="flex justify-end">
+                  <motion.button
+                    whileTap={{ scale: 0.97 }} whileHover={{ y: -1 }}
+                    onClick={saveSession}
+                    disabled={saving || (totalRevenue === 0 && totalPaid === 0)}
+                    className="grad-primary text-primary-foreground font-bold px-6 py-3 rounded-2xl glow disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {saving ? "Saqlanmoqda…" : "Saqlash"}
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Saved sessions */}
+        {shifts.length > 0 && (
+          <section className="mt-10">
+            <h2 className="text-lg font-bold tracking-tight mb-3">Saqlangan smenalar</h2>
+            <div className="space-y-2">
+              {shifts.map((s) => {
+                const d = new Date(s.created_at);
+                const date = d.toLocaleDateString("ru-RU");
+                const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+                return (
+                  <motion.button key={s.id} layout
+                    initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -1 }}
+                    onClick={() => setDetail(s)}
+                    className="w-full text-left glass rounded-2xl border border-border/60 px-4 py-3 flex items-center justify-between hover:border-primary/50 transition-colors"
+                  >
+                    <div>
+                      <div className="text-xs text-muted-foreground num-display">
+                        Smena #{s.shift_number ?? "—"} · {date} · {time}
+                      </div>
+                      <div className="font-bold mt-0.5">
+                        Summa <span className="num-display text-primary">{fmt(s.total_revenue)}</span>
+                      </div>
+                    </div>
+                    <div className={`num-display font-bold ${
+                      s.diff > 0 ? "text-success" : s.diff < 0 ? "text-destructive" : "text-foreground"
+                    }`}>{fmtSigned(s.diff)}</div>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Detail modal */}
+        <AnimatePresence>
+          {detail && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setDetail(null)}
+              className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 grid place-items-center p-4 overflow-y-auto"
+            >
+              <motion.div
+                initial={{ scale: 0.96, y: 12, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.96, y: 12, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="glass rounded-3xl border border-border/60 p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                      Smena #{detail.shift_number ?? "—"}{detail.operator_name ? ` · ${detail.operator_name}` : ""}
+                    </div>
+                    <div className="num-display text-lg font-bold">
+                      {new Date(detail.created_at).toLocaleString("ru-RU")}
+                    </div>
+                  </div>
+                  <button onClick={() => setDetail(null)} className="h-9 w-9 rounded-xl border border-border/60 hover:border-primary/50 transition-colors">✕</button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {FUELS.map((f) => {
+                    const topSum = toNum(detail.tops[f.id]?.a) + toNum(detail.tops[f.id]?.b);
+                    const botSum = toNum(detail.bots[f.id]?.a) + toNum(detail.bots[f.id]?.b);
+                    const liters = Math.abs(botSum - topSum);
+                    return (
+                      <div key={f.id} className="rounded-2xl p-3 border border-border/60 bg-background/40">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="h-2 w-2 rounded-full" style={{ background: f.color }} />
+                          <span className="text-xs font-semibold">{f.name}{f.grade && <span className="opacity-60 ml-1">{f.grade}</span>}</span>
+                        </div>
+                        <div className="num-display text-xs text-muted-foreground">{fmt(topSum)} → {fmt(botSum)}</div>
+                        <div className="num-display text-sm font-bold">{fmt(liters)} L</div>
+                        <div className="num-display text-base font-bold text-primary">{fmt(liters * f.price)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {PAYMENTS.map((p) => (
+                    <div key={p.id} className="rounded-2xl p-3 border border-border/60 bg-background/40">
+                      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{p.label}</div>
+                      <div className="num-display text-lg font-bold">{fmt(toNum(detail.pays[p.id]))}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-2xl p-3 border border-border/60">
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Summa</div>
+                    <div className="num-display text-lg font-bold text-primary">{fmt(detail.total_revenue)}</div>
+                  </div>
+                  <div className="rounded-2xl p-3 border border-border/60">
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">To'lov</div>
+                    <div className="num-display text-lg font-bold text-accent">{fmt(detail.total_paid)}</div>
+                  </div>
+                  <div className="rounded-2xl p-3 border border-border/60">
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Farq</div>
+                    <div className={`num-display text-lg font-bold ${
+                      detail.diff > 0 ? "text-success" : detail.diff < 0 ? "text-destructive" : "text-foreground"
+                    }`}>{fmtSigned(detail.diff)}</div>
+                  </div>
+                </div>
+
+                {detail.deficit_reason && (
+                  <div className="mt-4 rounded-2xl p-3 border border-destructive/40 bg-destructive/5">
+                    <div className="text-[10px] uppercase tracking-widest text-destructive font-bold mb-1">Defitsit izohi</div>
+                    <div className="text-sm">{detail.deficit_reason}</div>
+                  </div>
+                )}
+
+                <div className="mt-5 flex justify-end">
+                  <button onClick={() => removeSession(detail.id)}
+                    className="px-4 py-2 rounded-xl border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors text-sm font-semibold">
+                    O'chirish
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+    </div>
+  );
+}
+
+function Section({ index, title, subtitle, right, children }: {
+  index: string; title: string; subtitle?: string; right?: React.ReactNode; children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <div className="flex items-end justify-between mb-3 gap-4">
+        <div className="flex items-center gap-3">
+          <span className="num-display text-xs text-primary font-bold">{index}</span>
+          <div>
+            <h2 className="text-lg font-bold tracking-tight">{title}</h2>
+            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+          </div>
+        </div>
+        {right}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Grid({ children }: { children: React.ReactNode }) {
+  return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">{children}</div>;
+}
+
+function FuelHeader({ f, children }: { f: typeof FUELS[number]; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5 px-1">
+        <span className="h-2 w-2 rounded-full" style={{ background: f.color }} />
+        <span className="text-xs font-semibold">{f.name}{f.grade && <span className="opacity-60 ml-1">{f.grade}</span>}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
