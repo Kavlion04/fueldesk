@@ -8,6 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { AuthProvider } from "@/hooks/useAuth";
+import { SettingsProvider } from "@/hooks/useSettings";
 
 import appCss from "../styles.css?url";
 
@@ -75,12 +76,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "FuelDesk" },
       { name: "description", content: "FuelDesk - fuel accounting software" },
-      { name: "author", content: "Lovable" },
       { property: "og:title", content: "FuelDesk" },
       { property: "og:description", content: "FuelDesk - fuel accounting software" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "FuelDesk" },
       { name: "twitter:description", content: "FuelDesk - fuel accounting software" },
       { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/7xLcAmR39GX614avBfM3F8ZCdhx1/social-images/social-1778393445910-1000003392.webp" },
@@ -129,7 +128,9 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Outlet />
+        <SettingsProvider>
+          <Outlet />
+        </SettingsProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

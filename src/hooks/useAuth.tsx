@@ -19,12 +19,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [displayName, setDisplayName] = useState<string | null>(null);
 
   const loadProfile = async (uid: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("display_name")
-      .eq("user_id", uid)
-      .maybeSingle();
-    setDisplayName(data?.display_name ?? null);
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("user_id", uid)
+        .maybeSingle();
+      if (error) return;
+      setDisplayName(data?.display_name ?? null);
+    } catch {
+      // ignore profile fetch errors (e.g. RLS not configured for anon users)
+    }
   };
 
   useEffect(() => {
@@ -36,11 +41,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setDisplayName(null);
       }
     });
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session?.user) loadProfile(data.session.user.id);
+
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        setSession(data.session);
+        if (data.session.user) loadProfile(data.session.user.id);
+        setLoading(false);
+        return;
+      }
+
+      // Ensure we have an authenticated user for RLS-protected tables (e.g. shifts)
+      const { data: anon, error } = await supabase.auth.signInAnonymously();
+      if (!error) {
+        setSession(anon.session ?? null);
+        if (anon.session?.user) loadProfile(anon.session.user.id);
+      }
       setLoading(false);
-    });
+    })();
+
     return () => sub.subscription.unsubscribe();
   }, []);
 

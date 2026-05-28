@@ -30,7 +30,10 @@ function CalcPage() {
 
   const press = (k: string) => {
     if (k === "C") {
-      setA(""); setB(""); setOp(null); return;
+      setA("");
+      setB("");
+      setOp(null);
+      return;
     }
     if (k === "⌫") {
       if (op && b) setB((s) => s.slice(0, -1));
@@ -43,10 +46,13 @@ function CalcPage() {
     }
     if (k === "=") {
       if (a && op && b) {
-        const x = Number(a), y = Number(b);
+        const x = Number(a),
+          y = Number(b);
         const r = op === "+" ? x + y : x * y;
         setHistory((h) => [`${fmt(x)} ${op} ${fmt(y)} = ${fmt(r)}`, ...h].slice(0, 8));
-        setA(String(r)); setB(""); setOp(null);
+        setA(String(r));
+        setB("");
+        setOp(null);
       }
       return;
     }
@@ -55,13 +61,7 @@ function CalcPage() {
     else setA((s) => (s + k).slice(0, 12));
   };
 
-  const keys = [
-    "C", "⌫", "×", "+",
-    "7", "8", "9",
-    "4", "5", "6",
-    "1", "2", "3",
-    "0", "00", "=",
-  ];
+  const keys = ["C", "⌫", "×", "+", "7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "00", "="];
 
   return (
     <div className="min-h-screen">
@@ -80,7 +80,7 @@ function CalcPage() {
 
         <div className="glass rounded-3xl border border-border/60 p-5 md:p-6">
           {/* Display */}
-          <div className="rounded-2xl bg-background/50 border border-border/60 p-5 mb-4 min-h-[120px] flex flex-col justify-end">
+          <div className="rounded-2xl bg-background/50 border border-border/60 p-5 mb-4 min-h-30 flex flex-col justify-end">
             <AnimatePresence mode="popLayout">
               {(op || a) && (
                 <motion.div
@@ -112,10 +112,10 @@ function CalcPage() {
                     k === "="
                       ? "grad-primary text-primary-foreground border-transparent col-span-1 glow"
                       : isOp
-                      ? "bg-accent/15 border-accent/40 text-accent hover:bg-accent/25"
-                      : isUtil
-                      ? "bg-destructive/10 border-destructive/30 text-destructive hover:bg-destructive/20"
-                      : "bg-secondary/60 border-border/60 hover:bg-secondary"
+                        ? "bg-accent/15 border-accent/40 text-accent hover:bg-accent/25"
+                        : isUtil
+                          ? "bg-destructive/10 border-destructive/30 text-destructive hover:bg-destructive/20"
+                          : "bg-secondary/60 border-border/60 hover:bg-secondary"
                   }`}
                 >
                   {k}

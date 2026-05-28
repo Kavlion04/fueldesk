@@ -7,7 +7,8 @@ import { MoneyInput } from "@/components/MoneyInput";
 import { NumberCard } from "@/components/NumberCard";
 import { fmt, fmtSigned, toNum } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "@tanstack/react-router";
+import { useSettings } from "@/hooks/useSettings";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -20,15 +21,15 @@ export const Route = createFileRoute("/_authenticated/")({
 });
 
 const FUELS = [
-  { id: "92k4", name: "Ai-92", grade: "K4", price: 10800, color: "var(--color-fuel-92k4)" },
-  { id: "92k5", name: "Ai-92", grade: "K5", price: 11400, color: "var(--color-fuel-92k5)" },
-  { id: "95",   name: "Ai-95", grade: "",   price: 13000, color: "var(--color-fuel-95)"   },
-  { id: "98",   name: "Ai-98", grade: "",   price: 16800, color: "var(--color-fuel-98)"   },
+  { id: "92k4", name: "Ai-92", grade: "K4", price: 11200, color: "var(--color-fuel-92k4)" },
+  { id: "92k5", name: "Ai-92", grade: "K5", price: 11900, color: "var(--color-fuel-92k5)" },
+  { id: "95",   name: "Ai-95", grade: "K5",   price: 13900, color: "var(--color-fuel-95)"   },
+  { id: "98",   name: "Ai-98", grade: "K5",   price: 18500, color: "var(--color-fuel-98)"   },
 ] as const;
 
 const PAYMENTS = [
-  { id: "online",   label: "Online karta" },
   { id: "terminal", label: "Terminal" },
+  { id: "online",   label: "Online karta" },
   { id: "yandex",   label: "Yandex" },
   { id: "other",    label: "Boshqa" },
 ] as const;
@@ -42,9 +43,12 @@ const emptySides: SideMap = {
 };
 const emptyPays: Record<PayId, string> = { online: "", terminal: "", yandex: "", other: "" };
 const DRAFT_KEY = "fueldesk:draft";
+const LOCAL_SHIFTS_KEY = "fueldesk:localShifts";
+const TRASH_SHIFTS_KEY = "fueldesk:trashShifts";
 
 interface DbShift {
   id: string;
+  user_id?: string;
   shift_number: number | null;
   shift_date: string;
   operator_name: string | null;
@@ -65,17 +69,22 @@ function loadJSON<T>(key: string, fallback: T): T {
 }
 
 function HomePage() {
-  const { user, displayName } = useAuth();
+  // Auth removed: always show home page
+  const navigate = useNavigate();
+  const { fuelPrices } = useSettings();
   const [open, setOpen] = useState(false);
   const [tops, setTops] = useState<SideMap>(emptySides);
   const [bots, setBots] = useState<SideMap>(emptySides);
   const [pays, setPays] = useState<Record<PayId, string>>(emptyPays);
   const [deficitReason, setDeficitReason] = useState("");
   const [shifts, setShifts] = useState<DbShift[]>([]);
+  const [localShifts, setLocalShifts] = useState<DbShift[]>([]);
   const [detail, setDetail] = useState<DbShift | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nextNumber, setNextNumber] = useState<number>(1);
+  const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
+  const [editingShiftNumber, setEditingShiftNumber] = useState<number | null>(null);
 
   useEffect(() => {
     const draft = loadJSON<{ tops: SideMap; bots: SideMap; pays: Record<PayId, string>; open?: boolean; deficitReason?: string } | null>(DRAFT_KEY, null);
@@ -86,6 +95,8 @@ function HomePage() {
       setDeficitReason(draft.deficitReason ?? "");
       if (draft.open) setOpen(true);
     }
+    const local = loadJSON<DbShift[]>(LOCAL_SHIFTS_KEY, []);
+    if (local?.length) setLocalShifts(local);
     setHydrated(true);
   }, []);
 
@@ -94,29 +105,39 @@ function HomePage() {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ tops, bots, pays, open, deficitReason }));
   }, [tops, bots, pays, open, deficitReason, hydrated]);
 
-  const fetchShifts = async () => {
-    if (!user) return;
-    const { data } = await supabase
+  const fetchShifts = async (localOverride?: DbShift[]) => {
+    const local = localOverride ?? localShifts;
+    const { data, error } = await supabase
       .from("shifts")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(100);
-    if (data) {
-      setShifts(data as unknown as DbShift[]);
-      const max = data.reduce((m, s: any) => Math.max(m, s.shift_number ?? 0), 0);
-      setNextNumber(max + 1);
+    if (error) {
+      // If backend is locked by RLS/401, keep working off local shifts
+      const maxLocal = local.reduce((m, s) => Math.max(m, s.shift_number ?? 0), 0);
+      setShifts(local);
+      setNextNumber(maxLocal + 1);
+      return;
     }
+    const remote = (data as unknown as DbShift[]) ?? [];
+    const merged = [...local, ...remote].sort((a, b) => {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+    setShifts(merged);
+    const max = merged.reduce((m, s: any) => Math.max(m, s.shift_number ?? 0), 0);
+    setNextNumber(max + 1);
   };
 
-  useEffect(() => { fetchShifts(); }, [user?.id]);
+  useEffect(() => { fetchShifts(); }, [localShifts]);
 
   const rows = useMemo(() =>
     FUELS.map((f) => {
+      const price = fuelPrices[f.id] ?? f.price;
       const topSum = toNum(tops[f.id].a) + toNum(tops[f.id].b);
       const botSum = toNum(bots[f.id].a) + toNum(bots[f.id].b);
       const liters = Math.abs(botSum - topSum);
-      return { ...f, topSum, botSum, liters, subtotal: liters * f.price };
-    }), [tops, bots]);
+      return { ...f, price, topSum, botSum, liters, subtotal: liters * price };
+    }), [tops, bots, fuelPrices]);
 
   const totalRevenue = rows.reduce((s, r) => s + r.subtotal, 0);
   const totalPaid = PAYMENTS.reduce((s, p) => s + toNum(pays[p.id]), 0);
@@ -124,33 +145,164 @@ function HomePage() {
   const isDeficit = diff < 0;
 
   const saveSession = async () => {
-    if (!user) return;
     if (isDeficit && !deficitReason.trim()) {
       alert("Defitsit bor — sababini yozing.");
       return;
     }
+
     setSaving(true);
-    const { error } = await supabase.from("shifts").insert({
-      user_id: user.id,
-      operator_name: displayName,
-      tops, bots, pays,
-      total_revenue: totalRevenue,
-      total_paid: totalPaid,
-      diff,
-      deficit_reason: isDeficit ? deficitReason.trim() : null,
-    });
-    setSaving(false);
-    if (error) { alert("Xatolik: " + error.message); return; }
-    setTops(emptySides); setBots(emptySides); setPays(emptyPays);
-    setDeficitReason(""); setOpen(false);
-    await fetchShifts();
+    try {
+      const shiftDate = new Date().toISOString().slice(0, 10);
+      const createdAt = new Date().toISOString();
+      // Ensure we have a session (needed for RLS-protected tables)
+      let userId: string | undefined;
+      try {
+        let { data: sess } = await supabase.auth.getSession();
+        if (!sess.session) {
+          await supabase.auth.signInAnonymously();
+          sess = (await supabase.auth.getSession()).data;
+        }
+        userId = sess.session?.user?.id;
+      } catch {
+        // ignore auth errors; we'll save locally
+      }
+
+      const targetShiftNumber = editingShiftNumber ?? nextNumber;
+
+      // Try remote save only if we have a userId (schema requires user_id)
+      if (userId) {
+        const payload = {
+          user_id: userId,
+          shift_number: targetShiftNumber,
+          shift_date: shiftDate,
+          operator_name: null,
+          tops,
+          bots,
+          pays,
+          total_revenue: totalRevenue,
+          total_paid: totalPaid,
+          diff,
+          deficit_reason: isDeficit ? deficitReason.trim() : null,
+        };
+
+        const { error } = editingShiftId
+          ? await supabase.from("shifts").update(payload).eq("id", editingShiftId)
+          : await supabase.from("shifts").insert(payload);
+        if (!error) {
+          // remote success
+          localStorage.removeItem(DRAFT_KEY);
+          setTops(emptySides);
+          setBots(emptySides);
+          setPays(emptyPays);
+          setDeficitReason("");
+          setOpen(false);
+          setDetail(null);
+          setEditingShiftId(null);
+          setEditingShiftNumber(null);
+          await fetchShifts();
+          navigate({ to: "/" });
+          return;
+        }
+      }
+
+      // Fallback: store locally so the app remains usable even if Supabase auth/RLS blocks writes
+      if (editingShiftId) {
+        const nextLocal = localShifts.map((s) =>
+          s.id !== editingShiftId
+            ? s
+            : {
+                ...s,
+                user_id: userId ?? s.user_id,
+                shift_number: targetShiftNumber,
+                shift_date: shiftDate,
+                operator_name: null,
+                tops,
+                bots,
+                pays,
+                total_revenue: totalRevenue,
+                total_paid: totalPaid,
+                diff,
+                deficit_reason: isDeficit ? deficitReason.trim() : null,
+              },
+        );
+        setLocalShifts(nextLocal);
+        localStorage.setItem(LOCAL_SHIFTS_KEY, JSON.stringify(nextLocal));
+        await fetchShifts(nextLocal);
+      } else {
+        const localShift: DbShift = {
+          id: crypto.randomUUID(),
+          user_id: userId,
+          shift_number: targetShiftNumber,
+          shift_date: shiftDate,
+          operator_name: null,
+          tops,
+          bots,
+          pays,
+          total_revenue: totalRevenue,
+          total_paid: totalPaid,
+          diff,
+          deficit_reason: isDeficit ? deficitReason.trim() : null,
+          created_at: createdAt,
+        };
+        const nextLocal = [localShift, ...localShifts];
+        setLocalShifts(nextLocal);
+        localStorage.setItem(LOCAL_SHIFTS_KEY, JSON.stringify(nextLocal));
+        await fetchShifts(nextLocal);
+      }
+
+      localStorage.removeItem(DRAFT_KEY);
+      setTops(emptySides);
+      setBots(emptySides);
+      setPays(emptyPays);
+      setDeficitReason("");
+      setOpen(false);
+      setDetail(null);
+      setEditingShiftId(null);
+      setEditingShiftNumber(null);
+
+      // fetchShifts already ran with the newest local snapshot above
+      navigate({ to: "/" });
+    } catch (e: any) {
+      alert(e?.message ?? "Saqlashda xatolik.");
+    } finally {
+      setSaving(false);
+    }
   };
+  const fmtShift = (s: DbShift) => {
+    const d = new Date(s.created_at);
+    return `Smena #${s.shift_number ?? "—"} · ${d.toLocaleDateString("ru-RU")} ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+  };
+  const loadSession = (s: DbShift) => { 
+    if (!confirm(`Smenani yuklamoqchimisiz? Hozirgi hisob-kitob saqlanmaydi.\n\n${fmtShift(s)}`)) return false;
+    setTops(s.tops); setBots(s.bots); setPays(s.pays);
+    setDeficitReason(s.deficit_reason ?? ""); setOpen(true);
+    setEditingShiftId(s.id);
+    setEditingShiftNumber(s.shift_number ?? null);
+    return true;
+  }
 
   const removeSession = async (id: string) => {
     if (!confirm("Smenani o'chirasizmi?")) return;
+    // move to trash (local) first so user can restore
+    const toTrash = shifts.find((s) => s.id === id) ?? localShifts.find((s) => s.id === id);
+    if (toTrash) {
+      const curTrash = loadJSON<DbShift[]>(TRASH_SHIFTS_KEY, []);
+      const nextTrash = [toTrash, ...curTrash.filter((s) => s.id !== id)];
+      localStorage.setItem(TRASH_SHIFTS_KEY, JSON.stringify(nextTrash));
+    }
+
+    // try remote delete (may fail under RLS)
     await supabase.from("shifts").delete().eq("id", id);
+
+    // remove from local list immediately
+    const nextLocal = localShifts.filter((s) => s.id !== id);
+    if (nextLocal.length !== localShifts.length) {
+      setLocalShifts(nextLocal);
+      localStorage.setItem(LOCAL_SHIFTS_KEY, JSON.stringify(nextLocal));
+    }
+    setShifts((prev) => prev.filter((s) => s.id !== id));
     setDetail(null);
-    fetchShifts();
+    fetchShifts(nextLocal);
   };
 
   return (
@@ -163,10 +315,12 @@ function HomePage() {
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
               className="text-3xl md:text-5xl font-black tracking-tight"
             >
-              Smena #{nextNumber}<span className="text-primary">.</span>
+              Smena #{editingShiftNumber ?? nextNumber}<span className="text-primary">.</span>
             </motion.h1>
             <p className="text-muted-foreground mt-2 max-w-md">
-              {displayName ? <>Operator: <span className="text-foreground font-semibold">{displayName}</span> · </> : null}
+              <span className="font-bold">Sanoq:</span> {rows.reduce((s, r) => s + r.liters, 0).toLocaleString("ru-RU")} litr
+              <br />      
+              <span className="font-bold">Summa:</span> {totalRevenue.toLocaleString("ru-RU")} so'm
               {new Date().toLocaleDateString("ru-RU", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
             </p>
           </div>
@@ -200,7 +354,7 @@ function HomePage() {
               transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden"
             >
               <div className="pt-6 space-y-8">
-                <Section index="01" title="Boshlang'ich sanoq" subtitle="Smena boshidagi 7-xonali ko'rsatkich">
+                <Section index="01" title="Boshlang'ich sanoq" >
                   <Grid>
                     {FUELS.map((f) => (
                       <FuelHeader key={f.id} f={f}>
@@ -218,7 +372,7 @@ function HomePage() {
                   </Grid>
                 </Section>
 
-                <Section index="02" title="Yakuniy sanoq" subtitle="Smena oxiridagi 7-xonali ko'rsatkich (A + B tomon)">
+                <Section index="02" title="Yakuniy sanoq" >
                   <Grid>
                     {FUELS.map((f) => (
                       <FuelHeader key={f.id} f={f}>
@@ -236,7 +390,7 @@ function HomePage() {
                   </Grid>
                 </Section>
 
-                <Section index="03" title="Litr × narx" subtitle="|Yakuniy − Boshlang'ich| × narx"
+                <Section index="03" title="Litr × narx" 
                   right={
                     <div className="text-right">
                       <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Jami summa</div>
@@ -261,7 +415,7 @@ function HomePage() {
                   </Grid>
                 </Section>
 
-                <Section index="04" title="To'lovlar" subtitle="Online, terminal, Yandex va boshqa (8-xonali son)"
+                <Section index="04" title="To'lovlar" 
                   right={
                     <div className="text-right">
                       <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Jami to'lovlar</div>
@@ -447,9 +601,20 @@ function HomePage() {
                   </div>
                 )}
 
-                <div className="mt-5 flex justify-end">
-                  <button onClick={() => removeSession(detail.id)}
-                    className="px-4 py-2 rounded-xl border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors text-sm font-semibold">
+                <div className="mt-5 flex justify-between gap-3">
+                  <button
+                    onClick={() => {
+                      const ok = loadSession(detail);
+                      if (ok) setDetail(null);
+                    }}
+                    className="px-4 py-2 rounded-xl border border-border/60 text-foreground hover:bg-background/60 transition-colors text-sm font-semibold"
+                  >
+                    Tahrirlash
+                  </button>
+                  <button
+                    onClick={() => removeSession(detail.id)}
+                    className="px-4 py-2 rounded-xl border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors text-sm font-semibold"
+                  >
                     O'chirish
                   </button>
                 </div>
