@@ -326,7 +326,7 @@ function HomePage() {
       // fetchShifts already ran with the newest local snapshot above
       navigate({ to: "/" });
     } catch (e: any) {
-      alert(e?.message ?? "Saqlashda xatolik.");
+      await dialog.alert({ title: "Xatolik", message: e?.message ?? "Saqlashda xatolik.", tone: "danger" });
     } finally {
       setSaving(false);
     }
