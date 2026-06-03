@@ -200,8 +200,8 @@ function SettingsPage() {
             </div>
             {trash.length > 0 && (
               <button
-                onClick={() => {
-                  if (!confirm("Korzinkani butunlay tozalaysizmi?")) return;
+                onClick={async () => {
+                  if (!(await dialog.confirm({ title: "Korzinkani tozalash", message: "Korzinkani butunlay tozalaysizmi?", tone: "warn", confirmLabel: "Tozalash" }))) return;
                   setTrash([]);
                   localStorage.setItem(TRASH_SHIFTS_KEY, JSON.stringify([]));
                 }}
