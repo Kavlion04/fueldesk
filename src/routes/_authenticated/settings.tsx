@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { NavBar } from "@/components/NavBar";
 import { fmt } from "@/lib/format";
 import { DEFAULT_FUEL_PRICES, type FuelId, useSettings } from "@/hooks/useSettings";
+import { useDialog } from "@/hooks/useDialog";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "FuelDesk — Sozlamalar" }] }),
@@ -45,6 +46,7 @@ function SettingsPage() {
   const { fuelPrices, setFuelPrice, resetFuelPrices, cart, addCartItem, removeCartItem, clearCart, cartTotal } =
     useSettings();
 
+  const dialog = useDialog();
   const [name, setName] = useState("");
   const [qty, setQty] = useState("1");
   const [price, setPrice] = useState("");
@@ -198,8 +200,8 @@ function SettingsPage() {
             </div>
             {trash.length > 0 && (
               <button
-                onClick={() => {
-                  if (!confirm("Korzinkani butunlay tozalaysizmi?")) return;
+                onClick={async () => {
+                  if (!(await dialog.confirm({ title: "Korzinkani tozalash", message: "Korzinkani butunlay tozalaysizmi?", tone: "warn", confirmLabel: "Tozalash" }))) return;
                   setTrash([]);
                   localStorage.setItem(TRASH_SHIFTS_KEY, JSON.stringify([]));
                 }}
@@ -245,8 +247,8 @@ function SettingsPage() {
                         Qaytarish
                       </button>
                       <button
-                        onClick={() => {
-                          if (!confirm("Butunlay o'chirasizmi? Qaytarib bo'lmaydi.")) return;
+                        onClick={async () => {
+                          if (!(await dialog.confirm({ title: "Butunlay o'chirish", message: "Butunlay o'chirasizmi? Qaytarib bo'lmaydi.", tone: "danger", confirmLabel: "O'chirish" }))) return;
                           const nextTrash = trash.filter((x) => x.id !== s.id);
                           setTrash(nextTrash);
                           localStorage.setItem(TRASH_SHIFTS_KEY, JSON.stringify(nextTrash));

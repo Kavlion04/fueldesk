@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { AuthProvider } from "@/hooks/useAuth";
 import { SettingsProvider } from "@/hooks/useSettings";
+import { DialogProvider } from "@/hooks/useDialog";
 
 import appCss from "../styles.css?url";
 
@@ -129,7 +130,9 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <SettingsProvider>
-          <Outlet />
+          <DialogProvider>
+            <Outlet />
+          </DialogProvider>
         </SettingsProvider>
       </AuthProvider>
     </QueryClientProvider>

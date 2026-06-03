@@ -9,6 +9,7 @@ import { fmt, fmtSigned, toNum } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "@tanstack/react-router";
 import { useSettings } from "@/hooks/useSettings";
+import { useDialog } from "@/hooks/useDialog";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -88,6 +89,7 @@ function HomePage() {
   // Auth removed: always show home page
   const navigate = useNavigate();
   const { fuelPrices } = useSettings();
+  const dialog = useDialog();
   const [open, setOpen] = useState(false);
   const [tops, setTops] = useState<SideMap>(emptySides);
   const [bots, setBots] = useState<SideMap>(emptySides);
@@ -149,13 +151,13 @@ function HomePage() {
   const saveNoteFromMorning = () => {
     setNote((n) => ({ ...n, tops, savedAt: new Date().toISOString() }));
   };
-  const clearNote = () => {
-    if (!confirm("Zametkani tozalaymizmi?")) return;
+  const clearNote = async () => {
+    if (!(await dialog.confirm({ title: "Zametkani tozalash", message: "Zametkani tozalaymizmi?", tone: "warn", confirmLabel: "Tozalash" }))) return;
     setNote({ ...emptyNote, autoApply: note.autoApply });
   };
   const onImageUpload = async (file: File) => {
     if (file.size > 4 * 1024 * 1024) {
-      alert("Rasm 4MB dan kichik bo'lsin.");
+      await dialog.alert({ title: "Rasm juda katta", message: "Rasm 4MB dan kichik bo'lsin.", tone: "warn" });
       return;
     }
     const reader = new FileReader();
@@ -207,7 +209,7 @@ function HomePage() {
 
   const saveSession = async () => {
     if (isDeficit && !deficitReason.trim()) {
-      alert("Defitsit bor — sababini yozing.");
+      await dialog.alert({ title: "Defitsit aniqlandi", message: "Defitsit bor — sababini yozing.", tone: "danger" });
       return;
     }
 
@@ -324,7 +326,7 @@ function HomePage() {
       // fetchShifts already ran with the newest local snapshot above
       navigate({ to: "/" });
     } catch (e: any) {
-      alert(e?.message ?? "Saqlashda xatolik.");
+      await dialog.alert({ title: "Xatolik", message: e?.message ?? "Saqlashda xatolik.", tone: "danger" });
     } finally {
       setSaving(false);
     }
@@ -333,8 +335,13 @@ function HomePage() {
     const d = new Date(s.created_at);
     return `Smena #${s.shift_number ?? "—"} · ${d.toLocaleDateString("ru-RU")} ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
   };
-  const loadSession = (s: DbShift) => { 
-    if (!confirm(`Smenani yuklamoqchimisiz? Hozirgi hisob-kitob saqlanmaydi.\n\n${fmtShift(s)}`)) return false;
+  const loadSession = async (s: DbShift) => {
+    if (!(await dialog.confirm({
+      title: "Smenani yuklash",
+      message: `Hozirgi hisob-kitob saqlanmaydi.\n\n${fmtShift(s)}`,
+      tone: "warn",
+      confirmLabel: "Yuklash",
+    }))) return false;
     setTops(s.tops); setBots(s.bots); setPays(s.pays);
     setDeficitReason(s.deficit_reason ?? ""); setOpen(true);
     setEditingShiftId(s.id);
@@ -343,7 +350,7 @@ function HomePage() {
   }
 
   const removeSession = async (id: string) => {
-    if (!confirm("Smenani o'chirasizmi?")) return;
+    if (!(await dialog.confirm({ title: "Smenani o'chirish", message: "Smenani o'chirasizmi? Korzinkadan qaytarib olish mumkin.", tone: "danger", confirmLabel: "O'chirish" }))) return;
     // move to trash (local) first so user can restore
     const toTrash = shifts.find((s) => s.id === id) ?? localShifts.find((s) => s.id === id);
     if (toTrash) {
@@ -785,8 +792,8 @@ function HomePage() {
 
                 <div className="mt-5 flex justify-between gap-3">
                   <button
-                    onClick={() => {
-                      const ok = loadSession(detail);
+                    onClick={async () => {
+                      const ok = await loadSession(detail);
                       if (ok) setDetail(null);
                     }}
                     className="px-4 py-2 rounded-xl border border-border/60 text-foreground hover:bg-background/60 transition-colors text-sm font-semibold"
