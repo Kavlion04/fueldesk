@@ -45,6 +45,22 @@ const emptyPays: Record<PayId, string> = { online: "", terminal: "", yandex: "",
 const DRAFT_KEY = "fueldesk:draft";
 const LOCAL_SHIFTS_KEY = "fueldesk:localShifts";
 const TRASH_SHIFTS_KEY = "fueldesk:trashShifts";
+const MORNING_NOTE_KEY = "fueldesk:morningNote";
+
+interface MorningNote {
+  tops: SideMap;
+  text: string;
+  image: string | null; // base64 data URL
+  autoApply: boolean;
+  savedAt: string;
+}
+const emptyNote: MorningNote = {
+  tops: emptySides,
+  text: "",
+  image: null,
+  autoApply: true,
+  savedAt: "",
+};
 
 interface DbShift {
   id: string;
@@ -85,6 +101,9 @@ function HomePage() {
   const [nextNumber, setNextNumber] = useState<number>(1);
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [editingShiftNumber, setEditingShiftNumber] = useState<number | null>(null);
+  const [note, setNote] = useState<MorningNote>(emptyNote);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [imgPreview, setImgPreview] = useState<string | null>(null);
 
   useEffect(() => {
     const draft = loadJSON<{ tops: SideMap; bots: SideMap; pays: Record<PayId, string>; open?: boolean; deficitReason?: string } | null>(DRAFT_KEY, null);
@@ -97,6 +116,18 @@ function HomePage() {
     }
     const local = loadJSON<DbShift[]>(LOCAL_SHIFTS_KEY, []);
     if (local?.length) setLocalShifts(local);
+
+    const savedNote = loadJSON<MorningNote | null>(MORNING_NOTE_KEY, null);
+    if (savedNote) {
+      const merged: MorningNote = { ...emptyNote, ...savedNote, tops: { ...emptySides, ...(savedNote.tops ?? {}) } };
+      setNote(merged);
+      // Auto-apply morning note to "tops" if enabled, no draft existed, and tops are empty
+      const topsEmpty = !draft || Object.values(draft.tops ?? emptySides).every((s) => !s.a && !s.b);
+      if (merged.autoApply && topsEmpty) {
+        const hasAny = Object.values(merged.tops).some((s) => s.a || s.b);
+        if (hasAny) setTops(merged.tops);
+      }
+    }
     setHydrated(true);
   }, []);
 
@@ -104,6 +135,36 @@ function HomePage() {
     if (!hydrated) return;
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ tops, bots, pays, open, deficitReason }));
   }, [tops, bots, pays, open, deficitReason, hydrated]);
+
+  // Persist morning note
+  useEffect(() => {
+    if (!hydrated) return;
+    localStorage.setItem(MORNING_NOTE_KEY, JSON.stringify(note));
+  }, [note, hydrated]);
+
+  const applyNoteToMorning = () => {
+    setTops(note.tops);
+    setOpen(true);
+  };
+  const saveNoteFromMorning = () => {
+    setNote((n) => ({ ...n, tops, savedAt: new Date().toISOString() }));
+  };
+  const clearNote = () => {
+    if (!confirm("Zametkani tozalaymizmi?")) return;
+    setNote({ ...emptyNote, autoApply: note.autoApply });
+  };
+  const onImageUpload = async (file: File) => {
+    if (file.size > 4 * 1024 * 1024) {
+      alert("Rasm 4MB dan kichik bo'lsin.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setNote((n) => ({ ...n, image: reader.result as string, savedAt: new Date().toISOString() }));
+    };
+    reader.readAsDataURL(file);
+  };
+
 
   const fetchShifts = async (localOverride?: DbShift[]) => {
     const local = localOverride ?? localShifts;
@@ -325,6 +386,127 @@ function HomePage() {
             </p>
           </div>
         </section>
+
+        {/* Morning Note (zametka) */}
+        <section className="mb-4">
+          <div className="glass rounded-2xl border border-border/60 overflow-hidden">
+            <button
+              onClick={() => setNoteOpen((v) => !v)}
+              className="w-full px-5 py-3.5 flex items-center justify-between hover:bg-background/40 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <motion.span animate={{ rotate: noteOpen ? 90 : 0 }} className="h-9 w-9 rounded-xl bg-accent/15 border border-accent/40 grid place-items-center text-accent text-lg">📝</motion.span>
+                <div className="text-left">
+                  <div className="font-bold text-sm">Ertalabki zametka</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {note.savedAt
+                      ? `Saqlangan: ${new Date(note.savedAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`
+                      : "Ertalabki sanoqni saqlab qo'ying — keyin avtomatik to'ldiriladi"}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {note.image && <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/20 text-accent">📷 rasm</span>}
+                {note.autoApply && <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/20 text-primary">avto</span>}
+                <motion.span animate={{ rotate: noteOpen ? 180 : 0 }} className="text-muted-foreground text-xs">▼</motion.span>
+              </div>
+            </button>
+
+            <AnimatePresence initial={false}>
+              {noteOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden border-t border-border/60"
+                >
+                  <div className="p-5 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {FUELS.map((f) => (
+                        <div key={f.id} className="rounded-2xl border border-border/60 bg-background/40 p-3 space-y-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full" style={{ background: f.color }} />
+                            <span className="text-xs font-semibold">{f.name}{f.grade && <span className="opacity-60 ml-1">{f.grade}</span>}</span>
+                          </div>
+                          <MeterInput label="A tomon" tone="top" value={note.tops[f.id].a}
+                            onChange={(v) => setNote((n) => ({ ...n, tops: { ...n.tops, [f.id]: { ...n.tops[f.id], a: v } }, savedAt: new Date().toISOString() }))} />
+                          <MeterInput label="B tomon" tone="top" value={note.tops[f.id].b}
+                            onChange={(v) => setNote((n) => ({ ...n, tops: { ...n.tops, [f.id]: { ...n.tops[f.id], b: v } }, savedAt: new Date().toISOString() }))} />
+                        </div>
+                      ))}
+                    </div>
+
+                    <textarea
+                      value={note.text}
+                      onChange={(e) => setNote((n) => ({ ...n, text: e.target.value, savedAt: new Date().toISOString() }))}
+                      rows={2}
+                      placeholder="Izoh… (masalan: A-tomon nasos sekin)"
+                      className="w-full bg-background/60 border border-border/60 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent/60 resize-none"
+                    />
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="cursor-pointer text-xs px-3 py-2 rounded-xl border border-border/60 hover:border-accent/50 transition-colors">
+                        📷 Rasm yuklash
+                        <input type="file" accept="image/*" className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) onImageUpload(f); e.currentTarget.value = ""; }} />
+                      </label>
+                      {note.image && (
+                        <>
+                          <button onClick={() => setImgPreview(note.image)} className="text-xs px-3 py-2 rounded-xl border border-border/60 hover:border-accent/50 transition-colors">
+                            👁 Ko'rish
+                          </button>
+                          <button onClick={() => setNote((n) => ({ ...n, image: null }))} className="text-xs px-3 py-2 rounded-xl border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors">
+                            🗑 Rasmni o'chirish
+                          </button>
+                        </>
+                      )}
+
+                      <label className="ml-auto flex items-center gap-2 text-xs cursor-pointer select-none">
+                        <input type="checkbox" checked={note.autoApply}
+                          onChange={(e) => setNote((n) => ({ ...n, autoApply: e.target.checked }))}
+                          className="h-4 w-4 accent-primary" />
+                        <span className="text-muted-foreground">Avto qo'shish</span>
+                      </label>
+                    </div>
+
+                    {note.image && (
+                      <button onClick={() => setImgPreview(note.image)} className="block w-full">
+                        <img src={note.image} alt="Ertalabki rasm" className="w-full max-h-48 object-contain rounded-xl border border-border/60 bg-background/40" />
+                      </button>
+                    )}
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button onClick={saveNoteFromMorning}
+                        className="text-xs px-3 py-2 rounded-xl border border-border/60 hover:border-primary/50 transition-colors font-semibold">
+                        ⬆ Joriy sanoqdan saqlash
+                      </button>
+                      <button onClick={applyNoteToMorning}
+                        className="text-xs px-3 py-2 rounded-xl grad-primary text-primary-foreground font-semibold glow">
+                        ➜ Ertalabga qo'shish
+                      </button>
+                      <button onClick={clearNote}
+                        className="ml-auto text-xs px-3 py-2 rounded-xl border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors font-semibold">
+                        Tozalash
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </section>
+
+        {/* Image preview modal */}
+        <AnimatePresence>
+          {imgPreview && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setImgPreview(null)}
+              className="fixed inset-0 bg-background/90 backdrop-blur-sm z-50 grid place-items-center p-4">
+              <img src={imgPreview} alt="Zametka" className="max-w-full max-h-[90vh] rounded-2xl border border-border/60" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+
 
         <motion.button
           whileTap={{ scale: 0.98 }}
