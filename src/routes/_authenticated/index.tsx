@@ -9,6 +9,7 @@ import { fmt, fmtSigned, toNum } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "@tanstack/react-router";
 import { useSettings } from "@/hooks/useSettings";
+import { useDialog } from "@/hooks/useDialog";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
