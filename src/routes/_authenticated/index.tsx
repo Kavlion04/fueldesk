@@ -45,6 +45,22 @@ const emptyPays: Record<PayId, string> = { online: "", terminal: "", yandex: "",
 const DRAFT_KEY = "fueldesk:draft";
 const LOCAL_SHIFTS_KEY = "fueldesk:localShifts";
 const TRASH_SHIFTS_KEY = "fueldesk:trashShifts";
+const MORNING_NOTE_KEY = "fueldesk:morningNote";
+
+interface MorningNote {
+  tops: SideMap;
+  text: string;
+  image: string | null; // base64 data URL
+  autoApply: boolean;
+  savedAt: string;
+}
+const emptyNote: MorningNote = {
+  tops: emptySides,
+  text: "",
+  image: null,
+  autoApply: true,
+  savedAt: "",
+};
 
 interface DbShift {
   id: string;
