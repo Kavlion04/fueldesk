@@ -247,8 +247,8 @@ function SettingsPage() {
                         Qaytarish
                       </button>
                       <button
-                        onClick={() => {
-                          if (!confirm("Butunlay o'chirasizmi? Qaytarib bo'lmaydi.")) return;
+                        onClick={async () => {
+                          if (!(await dialog.confirm({ title: "Butunlay o'chirish", message: "Butunlay o'chirasizmi? Qaytarib bo'lmaydi.", tone: "danger", confirmLabel: "O'chirish" }))) return;
                           const nextTrash = trash.filter((x) => x.id !== s.id);
                           setTrash(nextTrash);
                           localStorage.setItem(TRASH_SHIFTS_KEY, JSON.stringify(nextTrash));
