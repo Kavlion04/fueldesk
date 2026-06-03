@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { NavBar } from "@/components/NavBar";
 import { fmt } from "@/lib/format";
 import { DEFAULT_FUEL_PRICES, type FuelId, useSettings } from "@/hooks/useSettings";
+import { useDialog } from "@/hooks/useDialog";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "FuelDesk — Sozlamalar" }] }),
