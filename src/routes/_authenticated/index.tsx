@@ -116,6 +116,18 @@ function HomePage() {
     }
     const local = loadJSON<DbShift[]>(LOCAL_SHIFTS_KEY, []);
     if (local?.length) setLocalShifts(local);
+
+    const savedNote = loadJSON<MorningNote | null>(MORNING_NOTE_KEY, null);
+    if (savedNote) {
+      const merged: MorningNote = { ...emptyNote, ...savedNote, tops: { ...emptySides, ...(savedNote.tops ?? {}) } };
+      setNote(merged);
+      // Auto-apply morning note to "tops" if enabled, no draft existed, and tops are empty
+      const topsEmpty = !draft || Object.values(draft.tops ?? emptySides).every((s) => !s.a && !s.b);
+      if (merged.autoApply && topsEmpty) {
+        const hasAny = Object.values(merged.tops).some((s) => s.a || s.b);
+        if (hasAny) setTops(merged.tops);
+      }
+    }
     setHydrated(true);
   }, []);
 
