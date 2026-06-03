@@ -101,6 +101,9 @@ function HomePage() {
   const [nextNumber, setNextNumber] = useState<number>(1);
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [editingShiftNumber, setEditingShiftNumber] = useState<number | null>(null);
+  const [note, setNote] = useState<MorningNote>(emptyNote);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [imgPreview, setImgPreview] = useState<string | null>(null);
 
   useEffect(() => {
     const draft = loadJSON<{ tops: SideMap; bots: SideMap; pays: Record<PayId, string>; open?: boolean; deficitReason?: string } | null>(DRAFT_KEY, null);
