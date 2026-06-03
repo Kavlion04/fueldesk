@@ -335,8 +335,13 @@ function HomePage() {
     const d = new Date(s.created_at);
     return `Smena #${s.shift_number ?? "—"} · ${d.toLocaleDateString("ru-RU")} ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
   };
-  const loadSession = (s: DbShift) => { 
-    if (!confirm(`Smenani yuklamoqchimisiz? Hozirgi hisob-kitob saqlanmaydi.\n\n${fmtShift(s)}`)) return false;
+  const loadSession = async (s: DbShift) => {
+    if (!(await dialog.confirm({
+      title: "Smenani yuklash",
+      message: `Hozirgi hisob-kitob saqlanmaydi.\n\n${fmtShift(s)}`,
+      tone: "warn",
+      confirmLabel: "Yuklash",
+    }))) return false;
     setTops(s.tops); setBots(s.bots); setPays(s.pays);
     setDeficitReason(s.deficit_reason ?? ""); setOpen(true);
     setEditingShiftId(s.id);
@@ -345,7 +350,7 @@ function HomePage() {
   }
 
   const removeSession = async (id: string) => {
-    if (!confirm("Smenani o'chirasizmi?")) return;
+    if (!(await dialog.confirm({ title: "Smenani o'chirish", message: "Smenani o'chirasizmi? Korzinkadan qaytarib olish mumkin.", tone: "danger", confirmLabel: "O'chirish" }))) return;
     // move to trash (local) first so user can restore
     const toTrash = shifts.find((s) => s.id === id) ?? localShifts.find((s) => s.id === id);
     if (toTrash) {
