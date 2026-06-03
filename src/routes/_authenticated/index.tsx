@@ -136,6 +136,36 @@ function HomePage() {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ tops, bots, pays, open, deficitReason }));
   }, [tops, bots, pays, open, deficitReason, hydrated]);
 
+  // Persist morning note
+  useEffect(() => {
+    if (!hydrated) return;
+    localStorage.setItem(MORNING_NOTE_KEY, JSON.stringify(note));
+  }, [note, hydrated]);
+
+  const applyNoteToMorning = () => {
+    setTops(note.tops);
+    setOpen(true);
+  };
+  const saveNoteFromMorning = () => {
+    setNote((n) => ({ ...n, tops, savedAt: new Date().toISOString() }));
+  };
+  const clearNote = () => {
+    if (!confirm("Zametkani tozalaymizmi?")) return;
+    setNote({ ...emptyNote, autoApply: note.autoApply });
+  };
+  const onImageUpload = async (file: File) => {
+    if (file.size > 4 * 1024 * 1024) {
+      alert("Rasm 4MB dan kichik bo'lsin.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setNote((n) => ({ ...n, image: reader.result as string, savedAt: new Date().toISOString() }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+
   const fetchShifts = async (localOverride?: DbShift[]) => {
     const local = localOverride ?? localShifts;
     const { data, error } = await supabase
