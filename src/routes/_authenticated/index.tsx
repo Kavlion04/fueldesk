@@ -157,7 +157,7 @@ function HomePage() {
   };
   const onImageUpload = async (file: File) => {
     if (file.size > 4 * 1024 * 1024) {
-      alert("Rasm 4MB dan kichik bo'lsin.");
+      await dialog.alert({ title: "Rasm juda katta", message: "Rasm 4MB dan kichik bo'lsin.", tone: "warn" });
       return;
     }
     const reader = new FileReader();
