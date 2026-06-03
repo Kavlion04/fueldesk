@@ -792,8 +792,8 @@ function HomePage() {
 
                 <div className="mt-5 flex justify-between gap-3">
                   <button
-                    onClick={() => {
-                      const ok = loadSession(detail);
+                    onClick={async () => {
+                      const ok = await loadSession(detail);
                       if (ok) setDetail(null);
                     }}
                     className="px-4 py-2 rounded-xl border border-border/60 text-foreground hover:bg-background/60 transition-colors text-sm font-semibold"
