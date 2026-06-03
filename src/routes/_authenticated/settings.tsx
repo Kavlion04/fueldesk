@@ -46,6 +46,7 @@ function SettingsPage() {
   const { fuelPrices, setFuelPrice, resetFuelPrices, cart, addCartItem, removeCartItem, clearCart, cartTotal } =
     useSettings();
 
+  const dialog = useDialog();
   const [name, setName] = useState("");
   const [qty, setQty] = useState("1");
   const [price, setPrice] = useState("");
