@@ -89,6 +89,7 @@ function HomePage() {
   // Auth removed: always show home page
   const navigate = useNavigate();
   const { fuelPrices } = useSettings();
+  const dialog = useDialog();
   const [open, setOpen] = useState(false);
   const [tops, setTops] = useState<SideMap>(emptySides);
   const [bots, setBots] = useState<SideMap>(emptySides);
