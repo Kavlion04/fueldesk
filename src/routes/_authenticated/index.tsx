@@ -151,8 +151,8 @@ function HomePage() {
   const saveNoteFromMorning = () => {
     setNote((n) => ({ ...n, tops, savedAt: new Date().toISOString() }));
   };
-  const clearNote = () => {
-    if (!confirm("Zametkani tozalaymizmi?")) return;
+  const clearNote = async () => {
+    if (!(await dialog.confirm({ title: "Zametkani tozalash", message: "Zametkani tozalaymizmi?", tone: "warn", confirmLabel: "Tozalash" }))) return;
     setNote({ ...emptyNote, autoApply: note.autoApply });
   };
   const onImageUpload = async (file: File) => {
