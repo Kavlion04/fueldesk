@@ -209,7 +209,7 @@ function HomePage() {
 
   const saveSession = async () => {
     if (isDeficit && !deficitReason.trim()) {
-      alert("Defitsit bor — sababini yozing.");
+      await dialog.alert({ title: "Defitsit aniqlandi", message: "Defitsit bor — sababini yozing.", tone: "danger" });
       return;
     }
 
