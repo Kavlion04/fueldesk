@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "@tanstack/react-router";
 import { useSettings } from "@/hooks/useSettings";
 import { useDialog } from "@/hooks/useDialog";
+import { FuelLoader, FuelLoaderOverlay } from "@/components/FuelLoader";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -138,10 +139,16 @@ function HomePage() {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ tops, bots, pays, open, deficitReason }));
   }, [tops, bots, pays, open, deficitReason, hydrated]);
 
-  // Persist morning note
+  // Persist morning note (with quota-safe fallback)
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(MORNING_NOTE_KEY, JSON.stringify(note));
+    try {
+      localStorage.setItem(MORNING_NOTE_KEY, JSON.stringify(note));
+    } catch {
+      try {
+        localStorage.setItem(MORNING_NOTE_KEY, JSON.stringify({ ...note, image: null }));
+      } catch { /* ignore */ }
+    }
   }, [note, hydrated]);
 
   const applyNoteToMorning = () => {
@@ -155,16 +162,54 @@ function HomePage() {
     if (!(await dialog.confirm({ title: "Zametkani tozalash", message: "Zametkani tozalaymizmi?", tone: "warn", confirmLabel: "Tozalash" }))) return;
     setNote({ ...emptyNote, autoApply: note.autoApply });
   };
+
+  // Downscale & compress so the base64 fits in localStorage
+  const compressImage = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Faylni o'qib bo'lmadi"));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("Rasmni ochib bo'lmadi"));
+        img.onload = () => {
+          const MAX = 1280;
+          let { width, height } = img;
+          if (width > MAX || height > MAX) {
+            const r = Math.min(MAX / width, MAX / height);
+            width = Math.round(width * r);
+            height = Math.round(height * r);
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("Canvas mavjud emas"));
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.72));
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+
+  const [imgLoading, setImgLoading] = useState(false);
   const onImageUpload = async (file: File) => {
-    if (file.size > 4 * 1024 * 1024) {
-      await dialog.alert({ title: "Rasm juda katta", message: "Rasm 4MB dan kichik bo'lsin.", tone: "warn" });
+    if (!file.type.startsWith("image/")) {
+      await dialog.alert({ title: "Noto'g'ri fayl", message: "Faqat rasm yuklash mumkin.", tone: "warn" });
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setNote((n) => ({ ...n, image: reader.result as string, savedAt: new Date().toISOString() }));
-    };
-    reader.readAsDataURL(file);
+    if (file.size > 15 * 1024 * 1024) {
+      await dialog.alert({ title: "Rasm juda katta", message: "Rasm 15MB dan kichik bo'lsin.", tone: "warn" });
+      return;
+    }
+    setImgLoading(true);
+    try {
+      const dataUrl = await compressImage(file);
+      setNote((n) => ({ ...n, image: dataUrl, savedAt: new Date().toISOString() }));
+    } catch (e: any) {
+      await dialog.alert({ title: "Xatolik", message: e?.message ?? "Rasmni qayta ishlab bo'lmadi.", tone: "danger" });
+    } finally {
+      setImgLoading(false);
+    }
   };
 
 
@@ -375,6 +420,7 @@ function HomePage() {
 
   return (
     <div className="min-h-screen">
+      <AnimatePresence>{saving && <FuelLoaderOverlay label="Smena saqlanmoqda…" />}</AnimatePresence>
       <NavBar />
       <main className="max-w-6xl mx-auto px-5 py-8">
         <section className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-8">
@@ -451,8 +497,8 @@ function HomePage() {
                     />
 
                     <div className="flex flex-wrap items-center gap-2">
-                      <label className="cursor-pointer text-xs px-3 py-2 rounded-xl border border-border/60 hover:border-accent/50 transition-colors">
-                        📷 Rasm yuklash
+                      <label className={`cursor-pointer text-xs px-3 py-2 rounded-xl border border-border/60 hover:border-accent/50 transition-colors inline-flex items-center gap-2 ${imgLoading ? "opacity-60 pointer-events-none" : ""}`}>
+                        {imgLoading ? <FuelLoader size={6} label="Qayta ishlanmoqda…" /> : <>📷 Rasm yuklash</>}
                         <input type="file" accept="image/*" className="hidden"
                           onChange={(e) => { const f = e.target.files?.[0]; if (f) onImageUpload(f); e.currentTarget.value = ""; }} />
                       </label>
@@ -462,7 +508,7 @@ function HomePage() {
                             👁 Ko'rish
                           </button>
                           <button onClick={() => setNote((n) => ({ ...n, image: null }))} className="text-xs px-3 py-2 rounded-xl border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors">
-                            🗑 Rasmni o'chirish
+                            🗑 O'chirish
                           </button>
                         </>
                       )}
@@ -476,9 +522,18 @@ function HomePage() {
                     </div>
 
                     {note.image && (
-                      <button onClick={() => setImgPreview(note.image)} className="block w-full">
-                        <img src={note.image} alt="Ertalabki rasm" className="w-full max-h-48 object-contain rounded-xl border border-border/60 bg-background/40" />
-                      </button>
+                      <motion.button
+                        layout
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        onClick={() => setImgPreview(note.image)}
+                        className="relative block w-full group rounded-2xl overflow-hidden border border-border/60 bg-background/40"
+                      >
+                        <img src={note.image} alt="Ertalabki rasm" className="w-full max-h-64 object-contain" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity grid place-items-end p-3">
+                          <span className="text-[10px] uppercase tracking-widest font-bold">👁 To'liq ko'rish</span>
+                        </div>
+                      </motion.button>
                     )}
 
                     <div className="flex flex-wrap gap-2 pt-1">
@@ -673,7 +728,7 @@ function HomePage() {
                     disabled={saving || (totalRevenue === 0 && totalPaid === 0)}
                     className="grad-primary text-primary-foreground font-bold px-6 py-3 rounded-2xl glow disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {saving ? "Saqlanmoqda…" : "Saqlash"}
+                    {saving ? <FuelLoader size={7} label="Saqlanmoqda…" /> : "Saqlash"}
                   </motion.button>
                 </div>
               </div>
