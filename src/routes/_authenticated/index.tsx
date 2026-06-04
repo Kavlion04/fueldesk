@@ -727,7 +727,7 @@ function HomePage() {
                     disabled={saving || (totalRevenue === 0 && totalPaid === 0)}
                     className="grad-primary text-primary-foreground font-bold px-6 py-3 rounded-2xl glow disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {saving ? "Saqlanmoqda…" : "Saqlash"}
+                    {saving ? <FuelLoader size={7} label="Saqlanmoqda…" /> : "Saqlash"}
                   </motion.button>
                 </div>
               </div>
