@@ -138,10 +138,16 @@ function HomePage() {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ tops, bots, pays, open, deficitReason }));
   }, [tops, bots, pays, open, deficitReason, hydrated]);
 
-  // Persist morning note
+  // Persist morning note (with quota-safe fallback)
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(MORNING_NOTE_KEY, JSON.stringify(note));
+    try {
+      localStorage.setItem(MORNING_NOTE_KEY, JSON.stringify(note));
+    } catch {
+      try {
+        localStorage.setItem(MORNING_NOTE_KEY, JSON.stringify({ ...note, image: null }));
+      } catch { /* ignore */ }
+    }
   }, [note, hydrated]);
 
   const applyNoteToMorning = () => {
@@ -155,16 +161,54 @@ function HomePage() {
     if (!(await dialog.confirm({ title: "Zametkani tozalash", message: "Zametkani tozalaymizmi?", tone: "warn", confirmLabel: "Tozalash" }))) return;
     setNote({ ...emptyNote, autoApply: note.autoApply });
   };
+
+  // Downscale & compress so the base64 fits in localStorage
+  const compressImage = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Faylni o'qib bo'lmadi"));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("Rasmni ochib bo'lmadi"));
+        img.onload = () => {
+          const MAX = 1280;
+          let { width, height } = img;
+          if (width > MAX || height > MAX) {
+            const r = Math.min(MAX / width, MAX / height);
+            width = Math.round(width * r);
+            height = Math.round(height * r);
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("Canvas mavjud emas"));
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.72));
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+
+  const [imgLoading, setImgLoading] = useState(false);
   const onImageUpload = async (file: File) => {
-    if (file.size > 4 * 1024 * 1024) {
-      await dialog.alert({ title: "Rasm juda katta", message: "Rasm 4MB dan kichik bo'lsin.", tone: "warn" });
+    if (!file.type.startsWith("image/")) {
+      await dialog.alert({ title: "Noto'g'ri fayl", message: "Faqat rasm yuklash mumkin.", tone: "warn" });
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setNote((n) => ({ ...n, image: reader.result as string, savedAt: new Date().toISOString() }));
-    };
-    reader.readAsDataURL(file);
+    if (file.size > 15 * 1024 * 1024) {
+      await dialog.alert({ title: "Rasm juda katta", message: "Rasm 15MB dan kichik bo'lsin.", tone: "warn" });
+      return;
+    }
+    setImgLoading(true);
+    try {
+      const dataUrl = await compressImage(file);
+      setNote((n) => ({ ...n, image: dataUrl, savedAt: new Date().toISOString() }));
+    } catch (e: any) {
+      await dialog.alert({ title: "Xatolik", message: e?.message ?? "Rasmni qayta ishlab bo'lmadi.", tone: "danger" });
+    } finally {
+      setImgLoading(false);
+    }
   };
 
 
