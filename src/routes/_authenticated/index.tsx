@@ -496,8 +496,8 @@ function HomePage() {
                     />
 
                     <div className="flex flex-wrap items-center gap-2">
-                      <label className="cursor-pointer text-xs px-3 py-2 rounded-xl border border-border/60 hover:border-accent/50 transition-colors">
-                        📷 Rasm yuklash
+                      <label className={`cursor-pointer text-xs px-3 py-2 rounded-xl border border-border/60 hover:border-accent/50 transition-colors inline-flex items-center gap-2 ${imgLoading ? "opacity-60 pointer-events-none" : ""}`}>
+                        {imgLoading ? <FuelLoader size={6} label="Qayta ishlanmoqda…" /> : <>📷 Rasm yuklash</>}
                         <input type="file" accept="image/*" className="hidden"
                           onChange={(e) => { const f = e.target.files?.[0]; if (f) onImageUpload(f); e.currentTarget.value = ""; }} />
                       </label>
@@ -507,7 +507,7 @@ function HomePage() {
                             👁 Ko'rish
                           </button>
                           <button onClick={() => setNote((n) => ({ ...n, image: null }))} className="text-xs px-3 py-2 rounded-xl border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors">
-                            🗑 Rasmni o'chirish
+                            🗑 O'chirish
                           </button>
                         </>
                       )}
@@ -521,9 +521,18 @@ function HomePage() {
                     </div>
 
                     {note.image && (
-                      <button onClick={() => setImgPreview(note.image)} className="block w-full">
-                        <img src={note.image} alt="Ertalabki rasm" className="w-full max-h-48 object-contain rounded-xl border border-border/60 bg-background/40" />
-                      </button>
+                      <motion.button
+                        layout
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        onClick={() => setImgPreview(note.image)}
+                        className="relative block w-full group rounded-2xl overflow-hidden border border-border/60 bg-background/40"
+                      >
+                        <img src={note.image} alt="Ertalabki rasm" className="w-full max-h-64 object-contain" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity grid place-items-end p-3">
+                          <span className="text-[10px] uppercase tracking-widest font-bold">👁 To'liq ko'rish</span>
+                        </div>
+                      </motion.button>
                     )}
 
                     <div className="flex flex-wrap gap-2 pt-1">
