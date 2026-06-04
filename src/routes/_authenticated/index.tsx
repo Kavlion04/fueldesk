@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "@tanstack/react-router";
 import { useSettings } from "@/hooks/useSettings";
 import { useDialog } from "@/hooks/useDialog";
+import { FuelLoader, FuelLoaderOverlay } from "@/components/FuelLoader";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
