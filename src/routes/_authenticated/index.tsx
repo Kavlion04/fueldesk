@@ -8,9 +8,11 @@ import { NumberCard } from "@/components/NumberCard";
 import { fmt, fmtSigned, toNum } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useSettings } from "@/hooks/useSettings";
 import { useDialog } from "@/hooks/useDialog";
 import { FuelLoader, FuelLoaderOverlay } from "@/components/FuelLoader";
+import { extractMeterFromImage } from "@/lib/ocr.functions";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -192,8 +194,12 @@ function HomePage() {
     });
 
   const [imgLoading, setImgLoading] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const runOcr = useServerFn(extractMeterFromImage);
+
   const onImageUpload = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
+    if (!file) return;
+    if (file.type && !file.type.startsWith("image/")) {
       await dialog.alert({ title: "Noto'g'ri fayl", message: "Faqat rasm yuklash mumkin.", tone: "warn" });
       return;
     }
@@ -202,13 +208,51 @@ function HomePage() {
       return;
     }
     setImgLoading(true);
+    let dataUrl: string;
     try {
-      const dataUrl = await compressImage(file);
+      dataUrl = await compressImage(file);
       setNote((n) => ({ ...n, image: dataUrl, savedAt: new Date().toISOString() }));
     } catch (e: any) {
-      await dialog.alert({ title: "Xatolik", message: e?.message ?? "Rasmni qayta ishlab bo'lmadi.", tone: "danger" });
-    } finally {
       setImgLoading(false);
+      await dialog.alert({ title: "Rasm xatosi", message: e?.message ?? "Rasmni qayta ishlab bo'lmadi.", tone: "danger" });
+      return;
+    }
+    setImgLoading(false);
+
+    // OCR: try to extract A/B values automatically
+    setOcrLoading(true);
+    try {
+      const result = await runOcr({ data: { imageDataUrl: dataUrl } });
+      const newTops = { ...emptySides } as SideMap;
+      let filled = 0;
+      (Object.keys(newTops) as FuelId[]).forEach((id) => {
+        const a = result.tops?.[id]?.a ?? "";
+        const b = result.tops?.[id]?.b ?? "";
+        newTops[id] = { a, b };
+        if (a) filled++;
+        if (b) filled++;
+      });
+      if (filled > 0) {
+        setNote((n) => ({ ...n, tops: newTops, savedAt: new Date().toISOString() }));
+        await dialog.alert({
+          title: "Rasmdan o'qildi",
+          message: `${filled} ta qiymat avtomatik to'ldirildi. Tekshirib chiqing.`,
+        });
+      } else {
+        await dialog.alert({
+          title: "Aniqlanmadi",
+          message: "Rasmdan raqamlarni aniq o'qib bo'lmadi. Qo'lda kiriting.",
+          tone: "warn",
+        });
+      }
+    } catch (e: any) {
+      await dialog.alert({
+        title: "Avto o'qish ishlamadi",
+        message: e?.message ?? "Rasmdan raqamlarni o'qib bo'lmadi.",
+        tone: "warn",
+      });
+    } finally {
+      setOcrLoading(false);
     }
   };
 
@@ -526,10 +570,22 @@ function HomePage() {
                     />
 
                     <div className="flex flex-wrap items-center gap-2">
-                      <label className={`cursor-pointer text-xs px-3 py-2 rounded-xl border border-border/60 hover:border-accent/50 transition-colors inline-flex items-center gap-2 ${imgLoading ? "opacity-60 pointer-events-none" : ""}`}>
-                        {imgLoading ? <FuelLoader size={6} label="Qayta ishlanmoqda…" /> : <>📷 Rasm yuklash</>}
-                        <input type="file" accept="image/*" className="hidden"
-                          onChange={(e) => { const f = e.target.files?.[0]; if (f) onImageUpload(f); e.currentTarget.value = ""; }} />
+                      <label className={`relative cursor-pointer text-xs px-3 py-2 rounded-xl border border-accent/40 bg-accent/10 hover:bg-accent/20 transition-colors inline-flex items-center gap-2 font-semibold ${(imgLoading || ocrLoading) ? "opacity-60 pointer-events-none" : ""}`}>
+                        {imgLoading
+                          ? <FuelLoader size={6} label="Yuklanmoqda…" />
+                          : ocrLoading
+                            ? <FuelLoader size={6} label="Rasm o'qilmoqda…" />
+                            : <>📷 Rasm yuklash (avto o'qish)</>}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            e.currentTarget.value = "";
+                            if (f) onImageUpload(f);
+                          }}
+                        />
                       </label>
                       {note.image && (
                         <>
@@ -566,16 +622,28 @@ function HomePage() {
                     )}
 
                     <div className="flex flex-wrap gap-2 pt-1">
-                      <button onClick={saveNoteFromMorning}
-                        className="text-xs px-3 py-2 rounded-xl border border-border/60 hover:border-primary/50 transition-colors font-semibold">
-                        ⬆ Joriy sanoqdan saqlash
-                      </button>
+                      <motion.button
+                        whileTap={{ scale: 0.96 }}
+                        whileHover={{ y: -1 }}
+                        onClick={async () => {
+                          setNote((n) => ({ ...n, savedAt: new Date().toISOString() }));
+                          setNoteOpen(false);
+                          await dialog.alert({ title: "Saqlandi", message: "Zametka asosiy ekranda ko'rinadi." });
+                        }}
+                        className="flex-1 min-w-[140px] grad-primary text-primary-foreground font-bold px-4 py-3 rounded-xl glow text-sm"
+                      >
+                        💾 Saqlash
+                      </motion.button>
                       <button onClick={applyNoteToMorning}
-                        className="text-xs px-3 py-2 rounded-xl grad-primary text-primary-foreground font-semibold glow">
+                        className="text-xs px-3 py-3 rounded-xl border border-accent/40 bg-accent/10 hover:bg-accent/20 transition-colors font-semibold">
                         ➜ Ertalabga qo'shish
                       </button>
+                      <button onClick={saveNoteFromMorning}
+                        className="text-xs px-3 py-3 rounded-xl border border-border/60 hover:border-primary/50 transition-colors font-semibold">
+                        ⬆ Joriydan
+                      </button>
                       <button onClick={clearNote}
-                        className="ml-auto text-xs px-3 py-2 rounded-xl border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors font-semibold">
+                        className="text-xs px-3 py-3 rounded-xl border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors font-semibold">
                         Tozalash
                       </button>
                     </div>

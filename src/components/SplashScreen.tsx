@@ -5,17 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
  * Beautiful animated splash shown on initial app load.
  * Auto-dismisses after `duration` ms.
  */
-export function SplashScreen({ duration = 1500 }: { duration?: number }) {
+export function SplashScreen({ duration = 1800 }: { duration?: number }) {
   const [show, setShow] = useState(true);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     const t = setTimeout(() => setShow(false), duration);
     return () => clearTimeout(t);
   }, [duration]);
 
-  if (!mounted) return null;
 
   return (
     <AnimatePresence>
