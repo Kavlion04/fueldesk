@@ -443,27 +443,56 @@ function HomePage() {
         {/* Morning Note (zametka) */}
         <section className="mb-4">
           <div className="glass rounded-2xl border border-border/60 overflow-hidden">
-            <button
-              onClick={() => setNoteOpen((v) => !v)}
-              className="w-full px-5 py-3.5 flex items-center justify-between hover:bg-background/40 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <motion.span animate={{ rotate: noteOpen ? 90 : 0 }} className="h-9 w-9 rounded-xl bg-accent/15 border border-accent/40 grid place-items-center text-accent text-lg">📝</motion.span>
-                <div className="text-left">
+            <div className="w-full px-5 py-3.5 flex items-center justify-between hover:bg-background/40 transition-colors">
+              <button
+                onClick={() => setNoteOpen((v) => !v)}
+                className="flex items-center gap-3 flex-1 min-w-0 text-left"
+              >
+                <motion.span animate={{ rotate: noteOpen ? 90 : 0 }} className="h-9 w-9 rounded-xl bg-accent/15 border border-accent/40 grid place-items-center text-accent text-lg shrink-0">📝</motion.span>
+                <div className="text-left min-w-0">
                   <div className="font-bold text-sm">Ertalabki zametka</div>
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-[11px] text-muted-foreground truncate">
                     {note.savedAt
                       ? `Saqlangan: ${new Date(note.savedAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`
                       : "Ertalabki sanoqni saqlab qo'ying — keyin avtomatik to'ldiriladi"}
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
+              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <AnimatePresence>
+                  {open && !editingShiftId && Object.values(note.tops).some((s) => s.a || s.b) && (
+                    <motion.button
+                      key="apply-plus"
+                      initial={{ opacity: 0, scale: 0.6, x: 8 }}
+                      animate={{ opacity: 1, scale: 1, x: 0 }}
+                      exit={{ opacity: 0, scale: 0.6, x: 8 }}
+                      whileTap={{ scale: 0.9 }}
+                      whileHover={{ scale: 1.08, rotate: 90 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 22 }}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setTops(note.tops);
+                        await dialog.alert({ title: "Qo'shildi", message: "Zametkadagi qiymatlar ertalabki sanoqqa o'tkazildi." });
+                      }}
+                      title="Zametkadagi qiymatlarni ertalabga qo'shish"
+                      className="relative h-9 w-9 rounded-xl grad-primary grid place-items-center text-primary-foreground text-xl font-bold glow"
+                    >
+                      <motion.span
+                        className="absolute inset-0 rounded-xl grad-primary opacity-50 blur-md -z-10"
+                        animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.7, 0.4] }}
+                        transition={{ duration: 1.6, repeat: Infinity }}
+                      />
+                      +
+                    </motion.button>
+                  )}
+                </AnimatePresence>
                 {note.image && <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/20 text-accent">📷 rasm</span>}
                 {note.autoApply && <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/20 text-primary">avto</span>}
-                <motion.span animate={{ rotate: noteOpen ? 180 : 0 }} className="text-muted-foreground text-xs">▼</motion.span>
+                <button onClick={() => setNoteOpen((v) => !v)} className="p-1">
+                  <motion.span animate={{ rotate: noteOpen ? 180 : 0 }} className="text-muted-foreground text-xs inline-block">▼</motion.span>
+                </button>
               </div>
-            </button>
+            </div>
 
             <AnimatePresence initial={false}>
               {noteOpen && (
