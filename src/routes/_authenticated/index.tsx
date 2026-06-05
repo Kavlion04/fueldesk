@@ -570,10 +570,22 @@ function HomePage() {
                     />
 
                     <div className="flex flex-wrap items-center gap-2">
-                      <label className={`cursor-pointer text-xs px-3 py-2 rounded-xl border border-border/60 hover:border-accent/50 transition-colors inline-flex items-center gap-2 ${imgLoading ? "opacity-60 pointer-events-none" : ""}`}>
-                        {imgLoading ? <FuelLoader size={6} label="Qayta ishlanmoqda…" /> : <>📷 Rasm yuklash</>}
-                        <input type="file" accept="image/*" className="hidden"
-                          onChange={(e) => { const f = e.target.files?.[0]; if (f) onImageUpload(f); e.currentTarget.value = ""; }} />
+                      <label className={`relative cursor-pointer text-xs px-3 py-2 rounded-xl border border-accent/40 bg-accent/10 hover:bg-accent/20 transition-colors inline-flex items-center gap-2 font-semibold ${(imgLoading || ocrLoading) ? "opacity-60 pointer-events-none" : ""}`}>
+                        {imgLoading
+                          ? <FuelLoader size={6} label="Yuklanmoqda…" />
+                          : ocrLoading
+                            ? <FuelLoader size={6} label="Rasm o'qilmoqda…" />
+                            : <>📷 Rasm yuklash (avto o'qish)</>}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            e.currentTarget.value = "";
+                            if (f) onImageUpload(f);
+                          }}
+                        />
                       </label>
                       {note.image && (
                         <>
@@ -610,16 +622,28 @@ function HomePage() {
                     )}
 
                     <div className="flex flex-wrap gap-2 pt-1">
-                      <button onClick={saveNoteFromMorning}
-                        className="text-xs px-3 py-2 rounded-xl border border-border/60 hover:border-primary/50 transition-colors font-semibold">
-                        ⬆ Joriy sanoqdan saqlash
-                      </button>
+                      <motion.button
+                        whileTap={{ scale: 0.96 }}
+                        whileHover={{ y: -1 }}
+                        onClick={async () => {
+                          setNote((n) => ({ ...n, savedAt: new Date().toISOString() }));
+                          setNoteOpen(false);
+                          await dialog.alert({ title: "Saqlandi", message: "Zametka asosiy ekranda ko'rinadi." });
+                        }}
+                        className="flex-1 min-w-[140px] grad-primary text-primary-foreground font-bold px-4 py-3 rounded-xl glow text-sm"
+                      >
+                        💾 Saqlash
+                      </motion.button>
                       <button onClick={applyNoteToMorning}
-                        className="text-xs px-3 py-2 rounded-xl grad-primary text-primary-foreground font-semibold glow">
+                        className="text-xs px-3 py-3 rounded-xl border border-accent/40 bg-accent/10 hover:bg-accent/20 transition-colors font-semibold">
                         ➜ Ertalabga qo'shish
                       </button>
+                      <button onClick={saveNoteFromMorning}
+                        className="text-xs px-3 py-3 rounded-xl border border-border/60 hover:border-primary/50 transition-colors font-semibold">
+                        ⬆ Joriydan
+                      </button>
                       <button onClick={clearNote}
-                        className="ml-auto text-xs px-3 py-2 rounded-xl border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors font-semibold">
+                        className="text-xs px-3 py-3 rounded-xl border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors font-semibold">
                         Tozalash
                       </button>
                     </div>
