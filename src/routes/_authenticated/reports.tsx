@@ -112,6 +112,7 @@ function ReportsPage() {
     });
     return Array.from(map.values());
   }, [rows]);
+  const maxChartValue = useMemo(() => Math.max(1, ...chartData.flatMap((d) => [d.revenue, d.paid])), [chartData]);
 
   const exportExcel = () => {
     const header = ["Smena", "Sana", "Jami summa", "Jami to'lov", "Farq"];
@@ -165,24 +166,30 @@ function ReportsPage() {
           Smenalar bo'yicha statistika va grafiklar.
         </p>
 
-        <div className="flex gap-1 p-1 rounded-full bg-secondary/60 border border-border/60 w-fit mb-6">
-          {(
-            [
-              { id: "day", label: "Bugun" },
-              { id: "week", label: "Hafta" },
-              { id: "month", label: "Oy" },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setRange(t.id)}
-              className={`relative px-4 py-1.5 text-xs font-semibold rounded-full ${
-                range === t.id ? "grad-primary text-primary-foreground" : "text-muted-foreground"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div className="flex gap-1 p-1 rounded-full bg-secondary/60 border border-border/60 w-fit">
+            {(
+              [
+                { id: "day", label: "Bugun" },
+                { id: "week", label: "Hafta" },
+                { id: "month", label: "Oy" },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setRange(t.id)}
+                className={`relative px-4 py-1.5 text-xs font-semibold rounded-full ${
+                  range === t.id ? "grad-primary text-primary-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={exportPdf} className="px-3 py-2 rounded-xl border border-border/60 bg-secondary/40 text-xs font-semibold hover:border-primary/50 transition-colors">PDF</button>
+            <button onClick={exportExcel} className="px-3 py-2 rounded-xl border border-border/60 bg-secondary/40 text-xs font-semibold hover:border-accent/50 transition-colors">Excel</button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -205,42 +212,16 @@ function ReportsPage() {
               Hozircha ma'lumot yo'q.
             </div>
           ) : (
-            <div className="h-64">
-              <ResponsiveContainer>
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.4} />
-                  <XAxis dataKey="date" stroke="var(--color-muted-foreground)" fontSize={11} />
-                  <YAxis
-                    stroke="var(--color-muted-foreground)"
-                    fontSize={11}
-                    tickFormatter={(v) =>
-                      v >= 1_000_000
-                        ? (v / 1_000_000).toFixed(1) + "M"
-                        : (v / 1000).toFixed(0) + "k"
-                    }
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--color-card)",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: 12,
-                    }}
-                    formatter={(v: any) => fmt(Number(v))}
-                  />
-                  <Bar
-                    dataKey="revenue"
-                    fill="var(--color-primary)"
-                    radius={[6, 6, 0, 0]}
-                    name="Summa"
-                  />
-                  <Bar
-                    dataKey="paid"
-                    fill="var(--color-accent)"
-                    radius={[6, 6, 0, 0]}
-                    name="To'lov"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="h-64 flex items-end gap-2 overflow-x-auto pb-2" data-no-swipe>
+              {chartData.map((d) => (
+                <div key={d.date} className="min-w-14 flex-1 h-full flex flex-col justify-end gap-1">
+                  <div className="flex items-end gap-1 h-full px-1">
+                    <div title={`Summa: ${fmt(d.revenue)}`} className="flex-1 rounded-t-lg grad-primary min-h-1" style={{ height: `${Math.max(4, (d.revenue / maxChartValue) * 100)}%` }} />
+                    <div title={`To'lov: ${fmt(d.paid)}`} className="flex-1 rounded-t-lg bg-accent min-h-1" style={{ height: `${Math.max(4, (d.paid / maxChartValue) * 100)}%` }} />
+                  </div>
+                  <div className="text-[10px] text-muted-foreground text-center num-display">{d.date}</div>
+                </div>
+              ))}
             </div>
           )}
         </div>
