@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { InstallButton } from "./InstallButton";
+import { useSettings } from "@/hooks/useSettings";
 
 const tabs = [
   { to: "/", label: "Stansiya" },
@@ -13,6 +14,7 @@ export function NavBar() {
   const { pathname } = useLocation();
   // Auth removed: always show navigation bar
   const nav = useNavigate();
+  const { theme, toggleTheme } = useSettings();
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/60 border-b border-border/60">
@@ -57,6 +59,13 @@ export function NavBar() {
               );
             })}
           </nav>
+          <button
+            onClick={toggleTheme}
+            className="h-9 w-9 rounded-full border border-border/60 bg-secondary/60 grid place-items-center text-sm hover:border-primary/50 transition-colors"
+            title={theme === "dark" ? "Yorug' tema" : "Qorong'i tema"}
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
           <InstallButton />
           {/* session/signOut removed */}
         </div>
