@@ -5,7 +5,7 @@ const ORDER = ["/", "/reports", "/settings", "/calc"] as const;
 const SWIPE_MIN = 46;
 
 function isInteractiveTarget(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest("input, textarea, select, button, a, [role='button'], [data-no-swipe]"));
+  return target instanceof Element && Boolean(target.closest("input, textarea, select, button, a, label, [role='button'], [data-no-swipe]"));
 }
 
 export function SwipeNavigator() {
