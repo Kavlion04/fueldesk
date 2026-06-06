@@ -562,8 +562,7 @@ function HomePage() {
                           <MeterInput label="B tomon" tone="top" value={note.tops[f.id].b}
                             onChange={(v) => setNote((n) => ({ ...n, tops: { ...n.tops, [f.id]: { ...n.tops[f.id], b: v } } }))} />
                         </div>
-                      </div>
-                    ))}
+                      ))}
                     </div>
 
                     <textarea
