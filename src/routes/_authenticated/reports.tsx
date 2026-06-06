@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { NavBar } from "@/components/NavBar";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt, fmtSigned } from "@/lib/format";
@@ -113,6 +112,43 @@ function ReportsPage() {
     });
     return Array.from(map.values());
   }, [rows]);
+
+  const exportExcel = () => {
+    const header = ["Smena", "Sana", "Jami summa", "Jami to'lov", "Farq"];
+    const body = rows.map((r) => [
+      r.shift_number ?? "",
+      r.created_at ? new Date(r.created_at).toLocaleString("ru-RU") : r.shift_date,
+      r.total_revenue,
+      r.total_paid,
+      r.diff,
+    ]);
+    const csv = [header, ...body]
+      .map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(";"))
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fueldesk-hisobot-${range}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = () => {
+    const win = window.open("", "_blank", "width=900,height=700");
+    if (!win) return;
+    win.document.write(`<!doctype html><html><head><title>FuelDesk Hisobot</title><style>
+      body{font-family:Arial,sans-serif;padding:24px;color:#111} h1{margin:0 0 12px} table{width:100%;border-collapse:collapse;margin-top:18px} th,td{border:1px solid #ddd;padding:8px;text-align:left} th{background:#f4f4f4}.num{text-align:right;font-variant-numeric:tabular-nums}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.card{border:1px solid #ddd;border-radius:10px;padding:12px}.label{font-size:10px;text-transform:uppercase;color:#666}.value{font-size:18px;font-weight:800}
+    </style></head><body><h1>FuelDesk hisobot</h1><div class="cards">
+      <div class="card"><div class="label">Smenalar</div><div class="value">${totals.count}</div></div>
+      <div class="card"><div class="label">Jami summa</div><div class="value">${fmt(totals.rev)}</div></div>
+      <div class="card"><div class="label">Jami to'lov</div><div class="value">${fmt(totals.paid)}</div></div>
+      <div class="card"><div class="label">Farq</div><div class="value">${fmtSigned(totals.diff)}</div></div>
+    </div><table><thead><tr><th>Smena</th><th>Sana</th><th>Summa</th><th>To'lov</th><th>Farq</th></tr></thead><tbody>${rows.map((r) => `<tr><td>#${r.shift_number ?? "—"}</td><td>${r.created_at ? new Date(r.created_at).toLocaleString("ru-RU") : r.shift_date}</td><td class="num">${fmt(r.total_revenue)}</td><td class="num">${fmt(r.total_paid)}</td><td class="num">${fmtSigned(r.diff)}</td></tr>`).join("")}</tbody></table></body></html>`);
+    win.document.close();
+    win.focus();
+    win.print();
+  };
 
   return (
     <div className="min-h-screen">
