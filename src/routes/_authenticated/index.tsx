@@ -141,16 +141,20 @@ function HomePage() {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ tops, bots, pays, open, deficitReason }));
   }, [tops, bots, pays, open, deficitReason, hydrated]);
 
-  // Persist morning note (with quota-safe fallback)
+  // Persist morning note (debounced + quota-safe fallback) — avoids re-stringifying
+  // a multi-MB base64 image on every keystroke, which was causing severe typing lag.
   useEffect(() => {
     if (!hydrated) return;
-    try {
-      localStorage.setItem(MORNING_NOTE_KEY, JSON.stringify(note));
-    } catch {
+    const t = setTimeout(() => {
       try {
-        localStorage.setItem(MORNING_NOTE_KEY, JSON.stringify({ ...note, image: null }));
-      } catch { /* ignore */ }
-    }
+        localStorage.setItem(MORNING_NOTE_KEY, JSON.stringify(note));
+      } catch {
+        try {
+          localStorage.setItem(MORNING_NOTE_KEY, JSON.stringify({ ...note, image: null }));
+        } catch { /* ignore */ }
+      }
+    }, 400);
+    return () => clearTimeout(t);
   }, [note, hydrated]);
 
   const applyNoteToMorning = () => {
