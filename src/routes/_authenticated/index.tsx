@@ -138,7 +138,10 @@ function HomePage() {
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ tops, bots, pays, open, deficitReason }));
+    const t = setTimeout(() => {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ tops, bots, pays, open, deficitReason }));
+    }, 250);
+    return () => clearTimeout(t);
   }, [tops, bots, pays, open, deficitReason, hydrated]);
 
   // Persist morning note (debounced + quota-safe fallback) — avoids re-stringifying
@@ -299,6 +302,25 @@ function HomePage() {
   const totalPaid = PAYMENTS.reduce((s, p) => s + toNum(pays[p.id]), 0);
   const diff = totalPaid - totalRevenue;
   const isDeficit = diff < 0;
+  const diffAnalysis = useMemo(() => {
+    if (totalRevenue === 0 && totalPaid === 0) return "Hisob kiritilganda farq avtomatik tahlil qilinadi.";
+    if (diff === 0) return "Hammasi teng — smenani yopish mumkin.";
+    const percent = totalRevenue ? Math.abs(diff / totalRevenue) * 100 : 0;
+    if (diff < 0) return `Defitsit: ${fmt(Math.abs(diff))} so'm (${percent.toFixed(2)}%). To'lovlar, terminal va naqd pulni qayta tekshiring.`;
+    return `Profitsit: ${fmt(diff)} so'm (${percent.toFixed(2)}%). Ortiqcha to'lov yoki sanoq xatosini tekshiring.`;
+  }, [diff, totalPaid, totalRevenue]);
+
+  const showShiftClosedSummary = async (shiftNumber: number | null) => {
+    const title = `Smena #${shiftNumber ?? "—"} yopildi`;
+    const body = `Summa: ${fmt(totalRevenue)} so'm · To'lov: ${fmt(totalPaid)} so'm · Farq: ${fmtSigned(diff)} so'm`;
+    if (typeof window !== "undefined" && "Notification" in window) {
+      try {
+        const allowed = Notification.permission === "granted" || (Notification.permission === "default" && (await Notification.requestPermission()) === "granted");
+        if (allowed) new Notification(title, { body });
+      } catch { /* ignore */ }
+    }
+    await dialog.alert({ title, message: `${body}\n\n${diffAnalysis}`, tone: diff < 0 ? "danger" : diff > 0 ? "warn" : undefined });
+  };
 
   const saveSession = async () => {
     if (isDeficit && !deficitReason.trim()) {
@@ -347,6 +369,7 @@ function HomePage() {
         if (!error) {
           // remote success
           localStorage.removeItem(DRAFT_KEY);
+          await showShiftClosedSummary(targetShiftNumber);
           setTops(emptySides);
           setBots(emptySides);
           setPays(emptyPays);
@@ -407,6 +430,7 @@ function HomePage() {
       }
 
       localStorage.removeItem(DRAFT_KEY);
+      await showShiftClosedSummary(targetShiftNumber);
       setTops(emptySides);
       setBots(emptySides);
       setPays(emptyPays);
@@ -800,6 +824,12 @@ function HomePage() {
                         {diff > 0 ? "Ortiqcha (profitsit)" : diff < 0 ? "Kam (defitsit)" : "Aynan teng"}
                       </div>
                     </motion.div>
+                  </div>
+
+                  <div className={`relative mt-4 rounded-2xl border px-4 py-3 text-sm ${
+                    diff < 0 ? "border-destructive/40 bg-destructive/5 text-destructive" : diff > 0 ? "border-warning/40 bg-warning/5 text-warning" : "border-success/40 bg-success/5 text-success"
+                  }`}>
+                    <span className="font-bold">Avto tahlil: </span>{diffAnalysis}
                   </div>
 
                   {/* Deficit reason */}

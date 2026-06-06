@@ -35,28 +35,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
-      if (s?.user) {
-        setTimeout(() => loadProfile(s.user.id), 0);
-      } else {
-        setDisplayName(null);
-      }
+      if (!s?.user) setDisplayName(null);
     });
 
     (async () => {
       const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        setSession(data.session);
-        if (data.session.user) loadProfile(data.session.user.id);
-        setLoading(false);
-        return;
-      }
-
-      // Ensure we have an authenticated user for RLS-protected tables (e.g. shifts)
-      const { data: anon, error } = await supabase.auth.signInAnonymously();
-      if (!error) {
-        setSession(anon.session ?? null);
-        if (anon.session?.user) loadProfile(anon.session.user.id);
-      }
+      setSession(data.session ?? null);
       setLoading(false);
     })();
 

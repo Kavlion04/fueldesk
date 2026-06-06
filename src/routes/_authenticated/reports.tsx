@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { NavBar } from "@/components/NavBar";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt, fmtSigned } from "@/lib/format";
@@ -113,6 +112,44 @@ function ReportsPage() {
     });
     return Array.from(map.values());
   }, [rows]);
+  const maxChartValue = useMemo(() => Math.max(1, ...chartData.flatMap((d) => [d.revenue, d.paid])), [chartData]);
+
+  const exportExcel = () => {
+    const header = ["Smena", "Sana", "Jami summa", "Jami to'lov", "Farq"];
+    const body = rows.map((r) => [
+      r.shift_number ?? "",
+      r.created_at ? new Date(r.created_at).toLocaleString("ru-RU") : r.shift_date,
+      r.total_revenue,
+      r.total_paid,
+      r.diff,
+    ]);
+    const csv = [header, ...body]
+      .map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(";"))
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fueldesk-hisobot-${range}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = () => {
+    const win = window.open("", "_blank", "width=900,height=700");
+    if (!win) return;
+    win.document.write(`<!doctype html><html><head><title>FuelDesk Hisobot</title><style>
+      body{font-family:Arial,sans-serif;padding:24px;color:#111} h1{margin:0 0 12px} table{width:100%;border-collapse:collapse;margin-top:18px} th,td{border:1px solid #ddd;padding:8px;text-align:left} th{background:#f4f4f4}.num{text-align:right;font-variant-numeric:tabular-nums}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.card{border:1px solid #ddd;border-radius:10px;padding:12px}.label{font-size:10px;text-transform:uppercase;color:#666}.value{font-size:18px;font-weight:800}
+    </style></head><body><h1>FuelDesk hisobot</h1><div class="cards">
+      <div class="card"><div class="label">Smenalar</div><div class="value">${totals.count}</div></div>
+      <div class="card"><div class="label">Jami summa</div><div class="value">${fmt(totals.rev)}</div></div>
+      <div class="card"><div class="label">Jami to'lov</div><div class="value">${fmt(totals.paid)}</div></div>
+      <div class="card"><div class="label">Farq</div><div class="value">${fmtSigned(totals.diff)}</div></div>
+    </div><table><thead><tr><th>Smena</th><th>Sana</th><th>Summa</th><th>To'lov</th><th>Farq</th></tr></thead><tbody>${rows.map((r) => `<tr><td>#${r.shift_number ?? "—"}</td><td>${r.created_at ? new Date(r.created_at).toLocaleString("ru-RU") : r.shift_date}</td><td class="num">${fmt(r.total_revenue)}</td><td class="num">${fmt(r.total_paid)}</td><td class="num">${fmtSigned(r.diff)}</td></tr>`).join("")}</tbody></table></body></html>`);
+    win.document.close();
+    win.focus();
+    win.print();
+  };
 
   return (
     <div className="min-h-screen">
@@ -129,24 +166,30 @@ function ReportsPage() {
           Smenalar bo'yicha statistika va grafiklar.
         </p>
 
-        <div className="flex gap-1 p-1 rounded-full bg-secondary/60 border border-border/60 w-fit mb-6">
-          {(
-            [
-              { id: "day", label: "Bugun" },
-              { id: "week", label: "Hafta" },
-              { id: "month", label: "Oy" },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setRange(t.id)}
-              className={`relative px-4 py-1.5 text-xs font-semibold rounded-full ${
-                range === t.id ? "grad-primary text-primary-foreground" : "text-muted-foreground"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div className="flex gap-1 p-1 rounded-full bg-secondary/60 border border-border/60 w-fit">
+            {(
+              [
+                { id: "day", label: "Bugun" },
+                { id: "week", label: "Hafta" },
+                { id: "month", label: "Oy" },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setRange(t.id)}
+                className={`relative px-4 py-1.5 text-xs font-semibold rounded-full ${
+                  range === t.id ? "grad-primary text-primary-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={exportPdf} className="px-3 py-2 rounded-xl border border-border/60 bg-secondary/40 text-xs font-semibold hover:border-primary/50 transition-colors">PDF</button>
+            <button onClick={exportExcel} className="px-3 py-2 rounded-xl border border-border/60 bg-secondary/40 text-xs font-semibold hover:border-accent/50 transition-colors">Excel</button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -169,42 +212,16 @@ function ReportsPage() {
               Hozircha ma'lumot yo'q.
             </div>
           ) : (
-            <div className="h-64">
-              <ResponsiveContainer>
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.4} />
-                  <XAxis dataKey="date" stroke="var(--color-muted-foreground)" fontSize={11} />
-                  <YAxis
-                    stroke="var(--color-muted-foreground)"
-                    fontSize={11}
-                    tickFormatter={(v) =>
-                      v >= 1_000_000
-                        ? (v / 1_000_000).toFixed(1) + "M"
-                        : (v / 1000).toFixed(0) + "k"
-                    }
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--color-card)",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: 12,
-                    }}
-                    formatter={(v: any) => fmt(Number(v))}
-                  />
-                  <Bar
-                    dataKey="revenue"
-                    fill="var(--color-primary)"
-                    radius={[6, 6, 0, 0]}
-                    name="Summa"
-                  />
-                  <Bar
-                    dataKey="paid"
-                    fill="var(--color-accent)"
-                    radius={[6, 6, 0, 0]}
-                    name="To'lov"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="h-64 flex items-end gap-2 overflow-x-auto pb-2" data-no-swipe>
+              {chartData.map((d) => (
+                <div key={d.date} className="min-w-14 flex-1 h-full flex flex-col justify-end gap-1">
+                  <div className="flex items-end gap-1 h-full px-1">
+                    <div title={`Summa: ${fmt(d.revenue)}`} className="flex-1 rounded-t-lg grad-primary min-h-1" style={{ height: `${Math.max(4, (d.revenue / maxChartValue) * 100)}%` }} />
+                    <div title={`To'lov: ${fmt(d.paid)}`} className="flex-1 rounded-t-lg bg-accent min-h-1" style={{ height: `${Math.max(4, (d.paid / maxChartValue) * 100)}%` }} />
+                  </div>
+                  <div className="text-[10px] text-muted-foreground text-center num-display">{d.date}</div>
+                </div>
+              ))}
             </div>
           )}
         </div>

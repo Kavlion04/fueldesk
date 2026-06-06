@@ -11,6 +11,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { SettingsProvider } from "@/hooks/useSettings";
 import { DialogProvider } from "@/hooks/useDialog";
 import { SplashScreen } from "@/components/SplashScreen";
+import { SwipeNavigator } from "@/components/SwipeNavigator";
 
 import appCss from "../styles.css?url";
 
@@ -133,6 +134,7 @@ function RootComponent() {
         <SettingsProvider>
           <DialogProvider>
             <SplashScreen />
+            <SwipeNavigator />
             <Outlet />
           </DialogProvider>
         </SettingsProvider>
