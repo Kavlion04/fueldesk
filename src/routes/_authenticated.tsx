@@ -1,14 +1,15 @@
-import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { SwipeNavigator } from "@/components/SwipeNavigator";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthGuard,
 });
 
 function AuthGuard() {
-  // Auth removed: always show content
-  const nav = useNavigate();
-  
-  
-  return <Outlet />;
+  return (
+    <>
+      <SwipeNavigator />
+      <Outlet />
+    </>
+  );
 }
