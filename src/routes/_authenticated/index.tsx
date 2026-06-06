@@ -138,7 +138,10 @@ function HomePage() {
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ tops, bots, pays, open, deficitReason }));
+    const t = setTimeout(() => {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ tops, bots, pays, open, deficitReason }));
+    }, 250);
+    return () => clearTimeout(t);
   }, [tops, bots, pays, open, deficitReason, hydrated]);
 
   // Persist morning note (debounced + quota-safe fallback) — avoids re-stringifying
@@ -299,6 +302,25 @@ function HomePage() {
   const totalPaid = PAYMENTS.reduce((s, p) => s + toNum(pays[p.id]), 0);
   const diff = totalPaid - totalRevenue;
   const isDeficit = diff < 0;
+  const diffAnalysis = useMemo(() => {
+    if (totalRevenue === 0 && totalPaid === 0) return "Hisob kiritilganda farq avtomatik tahlil qilinadi.";
+    if (diff === 0) return "Hammasi teng — smenani yopish mumkin.";
+    const percent = totalRevenue ? Math.abs(diff / totalRevenue) * 100 : 0;
+    if (diff < 0) return `Defitsit: ${fmt(Math.abs(diff))} so'm (${percent.toFixed(2)}%). To'lovlar, terminal va naqd pulni qayta tekshiring.`;
+    return `Profitsit: ${fmt(diff)} so'm (${percent.toFixed(2)}%). Ortiqcha to'lov yoki sanoq xatosini tekshiring.`;
+  }, [diff, totalPaid, totalRevenue]);
+
+  const showShiftClosedSummary = async (shiftNumber: number | null) => {
+    const title = `Smena #${shiftNumber ?? "—"} yopildi`;
+    const body = `Summa: ${fmt(totalRevenue)} so'm · To'lov: ${fmt(totalPaid)} so'm · Farq: ${fmtSigned(diff)} so'm`;
+    if (typeof window !== "undefined" && "Notification" in window) {
+      try {
+        const allowed = Notification.permission === "granted" || (Notification.permission === "default" && (await Notification.requestPermission()) === "granted");
+        if (allowed) new Notification(title, { body });
+      } catch { /* ignore */ }
+    }
+    await dialog.alert({ title, message: `${body}\n\n${diffAnalysis}`, tone: diff < 0 ? "danger" : diff > 0 ? "warn" : "success" });
+  };
 
   const saveSession = async () => {
     if (isDeficit && !deficitReason.trim()) {
