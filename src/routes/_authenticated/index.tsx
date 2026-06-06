@@ -319,7 +319,7 @@ function HomePage() {
         if (allowed) new Notification(title, { body });
       } catch { /* ignore */ }
     }
-    await dialog.alert({ title, message: `${body}\n\n${diffAnalysis}`, tone: diff < 0 ? "danger" : diff > 0 ? "warn" : "success" });
+    await dialog.alert({ title, message: `${body}\n\n${diffAnalysis}`, tone: diff < 0 ? "danger" : diff > 0 ? "warn" : undefined });
   };
 
   const saveSession = async () => {
@@ -369,6 +369,7 @@ function HomePage() {
         if (!error) {
           // remote success
           localStorage.removeItem(DRAFT_KEY);
+          await showShiftClosedSummary(targetShiftNumber);
           setTops(emptySides);
           setBots(emptySides);
           setPays(emptyPays);
@@ -429,6 +430,7 @@ function HomePage() {
       }
 
       localStorage.removeItem(DRAFT_KEY);
+      await showShiftClosedSummary(targetShiftNumber);
       setTops(emptySides);
       setBots(emptySides);
       setPays(emptyPays);
