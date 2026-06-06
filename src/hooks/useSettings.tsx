@@ -2,6 +2,7 @@ import { createContext, ReactNode, useContext, useEffect, useMemo, useState } fr
 
 export type FuelId = "92k4" | "92k5" | "95" | "98";
 export type FuelPrices = Record<FuelId, number>;
+export type ThemeMode = "dark" | "light";
 
 export const DEFAULT_FUEL_PRICES: FuelPrices = {
   "92k4": 11200,
@@ -21,6 +22,8 @@ type SettingsCtx = {
   fuelPrices: FuelPrices;
   setFuelPrice: (id: FuelId, price: number) => void;
   resetFuelPrices: () => void;
+  theme: ThemeMode;
+  toggleTheme: () => void;
 
   cart: CartItem[];
   addCartItem: (item: Omit<CartItem, "id">) => void;
@@ -31,6 +34,7 @@ type SettingsCtx = {
 
 const FUEL_PRICES_KEY = "fueldesk:fuelPrices";
 const CART_KEY = "fueldesk:cart";
+const THEME_KEY = "fueldesk:theme";
 
 function loadJSON<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -50,6 +54,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   );
 
   const [cart, setCart] = useState<CartItem[]>(() => loadJSON<CartItem[]>(CART_KEY, []));
+  const [theme, setTheme] = useState<ThemeMode>(() => loadJSON<ThemeMode>(THEME_KEY, "dark"));
 
   useEffect(() => {
     localStorage.setItem(FUEL_PRICES_KEY, JSON.stringify(fuelPrices));
@@ -59,6 +64,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
   }, [cart]);
 
+  useEffect(() => {
+    localStorage.setItem(THEME_KEY, JSON.stringify(theme));
+    document.documentElement.classList.toggle("light", theme === "light");
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.querySelector("meta[name='theme-color']")?.setAttribute("content", theme === "light" ? "#f4f7fb" : "#0b0f1a");
+  }, [theme]);
+
   const ctx = useMemo<SettingsCtx>(() => {
     const setFuelPrice = (id: FuelId, price: number) => {
       const p = Number.isFinite(price) ? Math.max(0, Math.round(price)) : 0;
@@ -66,6 +78,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     };
 
     const resetFuelPrices = () => setFuelPrices(DEFAULT_FUEL_PRICES);
+    const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
     const addCartItem = (item: Omit<CartItem, "id">) => {
       const qty = Number.isFinite(item.qty) ? Math.max(1, Math.round(item.qty)) : 1;
@@ -83,13 +96,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       fuelPrices,
       setFuelPrice,
       resetFuelPrices,
+      theme,
+      toggleTheme,
       cart,
       addCartItem,
       removeCartItem,
       clearCart,
       cartTotal,
     };
-  }, [fuelPrices, cart]);
+  }, [fuelPrices, cart, theme]);
 
   return <Ctx.Provider value={ctx}>{children}</Ctx.Provider>;
 }
