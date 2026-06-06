@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { InstallButton } from "./InstallButton";
 import { useSettings } from "@/hooks/useSettings";
@@ -12,8 +12,6 @@ const tabs = [
 
 export function NavBar() {
   const { pathname } = useLocation();
-  // Auth removed: always show navigation bar
-  const nav = useNavigate();
   const { theme, toggleTheme } = useSettings();
 
   return (

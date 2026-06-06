@@ -826,6 +826,12 @@ function HomePage() {
                     </motion.div>
                   </div>
 
+                  <div className={`relative mt-4 rounded-2xl border px-4 py-3 text-sm ${
+                    diff < 0 ? "border-destructive/40 bg-destructive/5 text-destructive" : diff > 0 ? "border-warning/40 bg-warning/5 text-warning" : "border-success/40 bg-success/5 text-success"
+                  }`}>
+                    <span className="font-bold">Avto tahlil: </span>{diffAnalysis}
+                  </div>
+
                   {/* Deficit reason */}
                   <AnimatePresence>
                     {isDeficit && (
