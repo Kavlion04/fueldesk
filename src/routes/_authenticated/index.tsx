@@ -558,16 +558,17 @@ function HomePage() {
                             <span className="text-xs font-semibold">{f.name}{f.grade && <span className="opacity-60 ml-1">{f.grade}</span>}</span>
                           </div>
                           <MeterInput label="A tomon" tone="top" value={note.tops[f.id].a}
-                            onChange={(v) => setNote((n) => ({ ...n, tops: { ...n.tops, [f.id]: { ...n.tops[f.id], a: v } }, savedAt: new Date().toISOString() }))} />
+                            onChange={(v) => setNote((n) => ({ ...n, tops: { ...n.tops, [f.id]: { ...n.tops[f.id], a: v } } }))} />
                           <MeterInput label="B tomon" tone="top" value={note.tops[f.id].b}
-                            onChange={(v) => setNote((n) => ({ ...n, tops: { ...n.tops, [f.id]: { ...n.tops[f.id], b: v } }, savedAt: new Date().toISOString() }))} />
+                            onChange={(v) => setNote((n) => ({ ...n, tops: { ...n.tops, [f.id]: { ...n.tops[f.id], b: v } } }))} />
                         </div>
-                      ))}
+                      </div>
+                    ))}
                     </div>
 
                     <textarea
                       value={note.text}
-                      onChange={(e) => setNote((n) => ({ ...n, text: e.target.value, savedAt: new Date().toISOString() }))}
+                      onChange={(e) => setNote((n) => ({ ...n, text: e.target.value }))}
                       rows={2}
                       placeholder="Izoh… (masalan: A-tomon nasos sekin)"
                       className="w-full bg-background/60 border border-border/60 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent/60 resize-none"
