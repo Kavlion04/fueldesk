@@ -301,7 +301,10 @@ function HomePage() {
       return;
     }
     const remote = (data as unknown as DbShift[]) ?? [];
-    const merged = [...local, ...remote].sort((a, b) => {
+    const mergedMap = new Map<string, DbShift>();
+    remote.forEach((s) => mergedMap.set(s.id, s));
+    local.forEach((s) => mergedMap.set(s.id, s));
+    const merged = Array.from(mergedMap.values()).sort((a, b) => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     setShifts(merged);
