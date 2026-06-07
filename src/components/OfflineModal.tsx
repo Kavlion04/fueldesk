@@ -46,8 +46,8 @@ export function OfflineModal() {
               </div>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              Internet ishlamayapti. Kiritilgan ma’lumotlar qurilmada saqlanadi,
-              aloqa tiklanganda davom etishingiz mumkin.
+              Internet ishlamayapti. Kiritilgan ma’lumotlar qurilmada saqlanadi, aloqa tiklanganda
+              davom etishingiz mumkin.
             </p>
             <button
               onClick={() => setOffline(!navigator.onLine)}
