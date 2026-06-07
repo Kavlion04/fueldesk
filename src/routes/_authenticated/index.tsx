@@ -66,6 +66,22 @@ const emptyNote: MorningNote = {
   savedAt: "",
 };
 
+const cloneSides = (value: SideMap = emptySides): SideMap => ({
+  "92k4": { ...(value["92k4"] ?? emptySides["92k4"]) },
+  "92k5": { ...(value["92k5"] ?? emptySides["92k5"]) },
+  "95": { ...(value["95"] ?? emptySides["95"]) },
+  "98": { ...(value["98"] ?? emptySides["98"]) },
+});
+
+const resetSides = () => cloneSides(emptySides);
+
+function withTimeout<T>(promise: Promise<T>, ms = 4500): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error("timeout")), ms)),
+  ]);
+}
+
 interface DbShift {
   id: string;
   user_id?: string;
@@ -266,6 +282,12 @@ function HomePage() {
 
   const fetchShifts = async (localOverride?: DbShift[]) => {
     const local = localOverride ?? localShifts;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const maxLocal = local.reduce((m, s) => Math.max(m, s.shift_number ?? 0), 0);
+      setShifts(local);
+      setNextNumber(maxLocal + 1);
+      return;
+    }
     const { data, error } = await supabase
       .from("shifts")
       .select("*")
