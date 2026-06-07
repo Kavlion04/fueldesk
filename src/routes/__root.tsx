@@ -12,6 +12,7 @@ import { SettingsProvider } from "@/hooks/useSettings";
 import { DialogProvider } from "@/hooks/useDialog";
 import { SplashScreen } from "@/components/SplashScreen";
 import { SwipeNavigator } from "@/components/SwipeNavigator";
+import { OfflineModal } from "@/components/OfflineModal";
 
 import appCss from "../styles.css?url";
 
@@ -135,6 +136,7 @@ function RootComponent() {
           <DialogProvider>
             <SplashScreen />
             <SwipeNavigator />
+            <OfflineModal />
             <Outlet />
           </DialogProvider>
         </SettingsProvider>
