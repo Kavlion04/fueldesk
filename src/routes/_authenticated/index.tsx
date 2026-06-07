@@ -400,8 +400,8 @@ function HomePage() {
             const userId = sess.session?.user?.id;
             if (!userId) return;
             const remotePayload = { ...savedShift, user_id: userId };
-            const { error } = await withTimeout(supabase.from("shifts").upsert(remotePayload), 4500);
-            if (!error) fetchShifts(nextLocal);
+            const remoteResult = await withTimeout(Promise.resolve(supabase.from("shifts").upsert(remotePayload)), 4500);
+            if (!remoteResult.error) fetchShifts(nextLocal);
           } catch { /* local save already completed */ }
         })();
       }
