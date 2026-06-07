@@ -406,6 +406,7 @@ function HomePage() {
         })();
       }
 
+      setSaving(false);
       await showShiftClosedSummary(targetShiftNumber);
     } catch (e: any) {
       await dialog.alert({ title: "Xatolik", message: e?.message ?? "Saqlashda xatolik.", tone: "danger" });
