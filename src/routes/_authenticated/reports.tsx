@@ -46,6 +46,14 @@ function toRow(s: any): Row {
   };
 }
 
+function escapeHtml(value: unknown) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
 function ReportsPage() {
   // Auth removed: always show reports page
   const [range, setRange] = useState<Range>("week");
@@ -115,22 +123,30 @@ function ReportsPage() {
   const maxChartValue = useMemo(() => Math.max(1, ...chartData.flatMap((d) => [d.revenue, d.paid])), [chartData]);
 
   const exportExcel = () => {
-    const header = ["Smena", "Sana", "Jami summa", "Jami to'lov", "Farq"];
-    const body = rows.map((r) => [
-      r.shift_number ?? "",
-      r.created_at ? new Date(r.created_at).toLocaleString("ru-RU") : r.shift_date,
-      r.total_revenue,
-      r.total_paid,
-      r.diff,
-    ]);
-    const csv = [header, ...body]
-      .map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(";"))
-      .join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const rangeLabel = range === "day" ? "Bugun" : range === "week" ? "Hafta" : "Oy";
+    const tableRows = rows.map((r) => `
+      <tr>
+        <td>#${escapeHtml(r.shift_number ?? "—")}</td>
+        <td>${escapeHtml(r.created_at ? new Date(r.created_at).toLocaleString("ru-RU") : r.shift_date)}</td>
+        <td class="num">${r.total_revenue}</td>
+        <td class="num">${r.total_paid}</td>
+        <td class="num ${r.diff < 0 ? "bad" : r.diff > 0 ? "good" : ""}">${r.diff}</td>
+      </tr>`).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        body{font-family:Arial,sans-serif;color:#172033} h1{font-size:22px;margin:0 0 6px} .sub{color:#64748b;margin-bottom:18px}
+        .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}.card{border:1px solid #d8dee9;background:#f8fafc;padding:12px}.label{font-size:10px;text-transform:uppercase;color:#64748b}.value{font-size:18px;font-weight:700;color:#0f172a}
+        table{width:100%;border-collapse:collapse} th{background:#172033;color:#ffffff;font-weight:700;text-align:left} th,td{border:1px solid #cbd5e1;padding:9px} tr:nth-child(even){background:#f8fafc}.num{text-align:right;mso-number-format:"#,##0"}.good{color:#047857;font-weight:700}.bad{color:#dc2626;font-weight:700}
+      </style></head><body>
+      <h1>FuelDesk hisobot</h1><div class="sub">Davr: ${rangeLabel} · ${new Date().toLocaleString("ru-RU")}</div>
+      <div class="cards"><div class="card"><div class="label">Smenalar</div><div class="value">${totals.count}</div></div><div class="card"><div class="label">Jami summa</div><div class="value">${totals.rev}</div></div><div class="card"><div class="label">Jami to'lov</div><div class="value">${totals.paid}</div></div><div class="card"><div class="label">Farq</div><div class="value">${totals.diff}</div></div></div>
+      <table><thead><tr><th>Smena</th><th>Sana</th><th>Jami summa</th><th>Jami to'lov</th><th>Farq</th></tr></thead><tbody>${tableRows || `<tr><td colspan="5">Ma'lumot yo'q</td></tr>`}</tbody></table>
+      </body></html>`;
+    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `fueldesk-hisobot-${range}.csv`;
+    a.download = `fueldesk-hisobot-${range}.xls`;
     a.click();
     URL.revokeObjectURL(url);
   };

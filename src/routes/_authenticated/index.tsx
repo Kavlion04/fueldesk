@@ -66,6 +66,22 @@ const emptyNote: MorningNote = {
   savedAt: "",
 };
 
+const cloneSides = (value: SideMap = emptySides): SideMap => ({
+  "92k4": { ...(value["92k4"] ?? emptySides["92k4"]) },
+  "92k5": { ...(value["92k5"] ?? emptySides["92k5"]) },
+  "95": { ...(value["95"] ?? emptySides["95"]) },
+  "98": { ...(value["98"] ?? emptySides["98"]) },
+});
+
+const resetSides = () => cloneSides(emptySides);
+
+function withTimeout<T>(promise: Promise<T>, ms = 4500): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error("timeout")), ms)),
+  ]);
+}
+
 interface DbShift {
   id: string;
   user_id?: string;
@@ -266,6 +282,12 @@ function HomePage() {
 
   const fetchShifts = async (localOverride?: DbShift[]) => {
     const local = localOverride ?? localShifts;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const maxLocal = local.reduce((m, s) => Math.max(m, s.shift_number ?? 0), 0);
+      setShifts(local);
+      setNextNumber(maxLocal + 1);
+      return;
+    }
     const { data, error } = await supabase
       .from("shifts")
       .select("*")
@@ -279,7 +301,10 @@ function HomePage() {
       return;
     }
     const remote = (data as unknown as DbShift[]) ?? [];
-    const merged = [...local, ...remote].sort((a, b) => {
+    const mergedMap = new Map<string, DbShift>();
+    remote.forEach((s) => mergedMap.set(s.id, s));
+    local.forEach((s) => mergedMap.set(s.id, s));
+    const merged = Array.from(mergedMap.values()).sort((a, b) => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     setShifts(merged);
@@ -332,116 +357,57 @@ function HomePage() {
     try {
       const shiftDate = new Date().toISOString().slice(0, 10);
       const createdAt = new Date().toISOString();
-      // Ensure we have a session (needed for RLS-protected tables)
-      let userId: string | undefined;
-      try {
-        let { data: sess } = await supabase.auth.getSession();
-        if (!sess.session) {
-          await supabase.auth.signInAnonymously();
-          sess = (await supabase.auth.getSession()).data;
-        }
-        userId = sess.session?.user?.id;
-      } catch {
-        // ignore auth errors; we'll save locally
-      }
-
       const targetShiftNumber = editingShiftNumber ?? nextNumber;
+      const savedShift: DbShift = {
+        id: editingShiftId ?? crypto.randomUUID(),
+        user_id: undefined,
+        shift_number: targetShiftNumber,
+        shift_date: shiftDate,
+        operator_name: null,
+        tops: cloneSides(tops),
+        bots: cloneSides(bots),
+        pays: { ...pays },
+        total_revenue: totalRevenue,
+        total_paid: totalPaid,
+        diff,
+        deficit_reason: isDeficit ? deficitReason.trim() : null,
+        created_at: editingShiftId ? (shifts.find((s) => s.id === editingShiftId)?.created_at ?? createdAt) : createdAt,
+      };
 
-      // Try remote save only if we have a userId (schema requires user_id)
-      if (userId) {
-        const payload = {
-          user_id: userId,
-          shift_number: targetShiftNumber,
-          shift_date: shiftDate,
-          operator_name: null,
-          tops,
-          bots,
-          pays,
-          total_revenue: totalRevenue,
-          total_paid: totalPaid,
-          diff,
-          deficit_reason: isDeficit ? deficitReason.trim() : null,
-        };
-
-        const { error } = editingShiftId
-          ? await supabase.from("shifts").update(payload).eq("id", editingShiftId)
-          : await supabase.from("shifts").insert(payload);
-        if (!error) {
-          // remote success
-          localStorage.removeItem(DRAFT_KEY);
-          await showShiftClosedSummary(targetShiftNumber);
-          setTops(emptySides);
-          setBots(emptySides);
-          setPays(emptyPays);
-          setDeficitReason("");
-          setOpen(false);
-          setDetail(null);
-          setEditingShiftId(null);
-          setEditingShiftNumber(null);
-          await fetchShifts();
-          navigate({ to: "/" });
-          return;
-        }
-      }
-
-      // Fallback: store locally so the app remains usable even if Supabase auth/RLS blocks writes
-      if (editingShiftId) {
-        const nextLocal = localShifts.map((s) =>
-          s.id !== editingShiftId
-            ? s
-            : {
-                ...s,
-                user_id: userId ?? s.user_id,
-                shift_number: targetShiftNumber,
-                shift_date: shiftDate,
-                operator_name: null,
-                tops,
-                bots,
-                pays,
-                total_revenue: totalRevenue,
-                total_paid: totalPaid,
-                diff,
-                deficit_reason: isDeficit ? deficitReason.trim() : null,
-              },
-        );
-        setLocalShifts(nextLocal);
-        localStorage.setItem(LOCAL_SHIFTS_KEY, JSON.stringify(nextLocal));
-        await fetchShifts(nextLocal);
-      } else {
-        const localShift: DbShift = {
-          id: crypto.randomUUID(),
-          user_id: userId,
-          shift_number: targetShiftNumber,
-          shift_date: shiftDate,
-          operator_name: null,
-          tops,
-          bots,
-          pays,
-          total_revenue: totalRevenue,
-          total_paid: totalPaid,
-          diff,
-          deficit_reason: isDeficit ? deficitReason.trim() : null,
-          created_at: createdAt,
-        };
-        const nextLocal = [localShift, ...localShifts];
-        setLocalShifts(nextLocal);
-        localStorage.setItem(LOCAL_SHIFTS_KEY, JSON.stringify(nextLocal));
-        await fetchShifts(nextLocal);
-      }
-
+      const nextLocal = editingShiftId && localShifts.some((s) => s.id === editingShiftId)
+        ? localShifts.map((s) => (s.id === editingShiftId ? { ...s, ...savedShift, user_id: s.user_id } : s))
+        : [savedShift, ...localShifts.filter((s) => s.id !== savedShift.id)];
+      localStorage.setItem(LOCAL_SHIFTS_KEY, JSON.stringify(nextLocal));
       localStorage.removeItem(DRAFT_KEY);
-      await showShiftClosedSummary(targetShiftNumber);
-      setTops(emptySides);
-      setBots(emptySides);
-      setPays(emptyPays);
+      setLocalShifts(nextLocal);
+      setShifts((prev) => [savedShift, ...prev.filter((s) => s.id !== savedShift.id)]);
+      setNextNumber((n) => editingShiftId ? n : Math.max(n, targetShiftNumber + 1));
+
+      setTops(resetSides());
+      setBots(resetSides());
+      setPays({ ...emptyPays });
       setDeficitReason("");
       setOpen(false);
       setDetail(null);
       setEditingShiftId(null);
       setEditingShiftNumber(null);
-
-      // fetchShifts already ran with the newest local snapshot above
       navigate({ to: "/" });
+
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        void (async () => {
+          try {
+            const { data: sess } = await withTimeout(supabase.auth.getSession(), 2500);
+            const userId = sess.session?.user?.id;
+            if (!userId) return;
+            const remotePayload = { ...savedShift, user_id: userId };
+            const remoteResult = await withTimeout(Promise.resolve(supabase.from("shifts").upsert(remotePayload)), 4500);
+            if (!remoteResult.error) fetchShifts(nextLocal);
+          } catch { /* local save already completed */ }
+        })();
+      }
+
+      setSaving(false);
+      await showShiftClosedSummary(targetShiftNumber);
     } catch (e: any) {
       await dialog.alert({ title: "Xatolik", message: e?.message ?? "Saqlashda xatolik.", tone: "danger" });
     } finally {
