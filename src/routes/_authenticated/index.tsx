@@ -418,6 +418,23 @@ function HomePage() {
     const d = new Date(s.created_at);
     return `Smena #${s.shift_number ?? "—"} · ${d.toLocaleDateString("ru-RU")} ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
   };
+
+  const clearForm = async () => {
+    if (totalRevenue === 0 && totalPaid === 0 && !deficitReason) return;
+    if (!(await dialog.confirm({
+      title: "Tozalash",
+      message: "Hozirgi hisob-kitob tozalansinmi? Barcha kiritilgan ma'lumotlar o'chiriladi.",
+      tone: "warn",
+      confirmLabel: "Tozalash",
+    }))) return;
+    setTops(resetSides());
+    setBots(resetSides());
+    setPays({ ...emptyPays });
+    setDeficitReason("");
+    setEditingShiftId(null);
+    setEditingShiftNumber(null);
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
+  };
   const loadSession = async (s: DbShift) => {
     if (!(await dialog.confirm({
       title: "Smenani yuklash",
