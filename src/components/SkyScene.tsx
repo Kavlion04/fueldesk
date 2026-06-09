@@ -32,7 +32,7 @@ export function SkyScene() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-[60vh] overflow-hidden"
+      className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[55vh] overflow-hidden"
       aria-hidden
     >
       <motion.div
