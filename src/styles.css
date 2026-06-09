@@ -154,7 +154,7 @@
   * {
     border-color: var(--color-border);
   }
-  html, body {
+  html {
     background: var(--gradient-bg);
     background-attachment: fixed;
     color: var(--color-foreground);
@@ -162,10 +162,14 @@
     -webkit-font-smoothing: antialiased;
   }
   body {
+    background: transparent;
     min-height: 100vh;
     overscroll-behavior-x: contain;
     touch-action: pan-y;
+    color: var(--color-foreground);
+    font-family: var(--font-display);
   }
+
 }
 
 @layer utilities {
