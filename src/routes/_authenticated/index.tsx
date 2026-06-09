@@ -13,6 +13,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { useDialog } from "@/hooks/useDialog";
 import { FuelLoader, FuelLoaderOverlay } from "@/components/FuelLoader";
 import { extractMeterFromImage } from "@/lib/ocr.functions";
+import { SkyScene } from "@/components/SkyScene";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -474,7 +475,8 @@ function HomePage() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen relative">
+      <SkyScene />
       <AnimatePresence>{saving && <FuelLoaderOverlay label="Smena saqlanmoqda…" />}</AnimatePresence>
       <NavBar />
       <main className="max-w-6xl mx-auto px-5 py-8">
