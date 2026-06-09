@@ -479,7 +479,8 @@ function HomePage() {
       <SkyScene />
       <AnimatePresence>{saving && <FuelLoaderOverlay label="Smena saqlanmoqda…" />}</AnimatePresence>
       <NavBar />
-      <main className="max-w-6xl mx-auto px-5 py-8">
+      <main className="relative z-10 max-w-6xl mx-auto px-5 py-8">
+
         <section className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-8">
           <div>
             <motion.h1
