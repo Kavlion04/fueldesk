@@ -835,7 +835,15 @@ function HomePage() {
                   </AnimatePresence>
                 </motion.section>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
+                  <motion.button
+                    whileTap={{ scale: 0.97 }} whileHover={{ y: -1 }}
+                    onClick={clearForm}
+                    disabled={saving || (totalRevenue === 0 && totalPaid === 0 && !deficitReason)}
+                    className="border border-destructive/50 text-destructive font-bold px-5 py-3 rounded-2xl hover:bg-destructive/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Tozalash
+                  </motion.button>
                   <motion.button
                     whileTap={{ scale: 0.97 }} whileHover={{ y: -1 }}
                     onClick={saveSession}
