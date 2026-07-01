@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { NavBar } from "@/components/NavBar";
 import { fmt } from "@/lib/format";
 import { DEFAULT_FUEL_PRICES, type FuelId, useSettings } from "@/hooks/useSettings";
 import { useDialog } from "@/hooks/useDialog";
+import { useI18n, type Lang } from "@/hooks/useI18n";
+import { haptic, setHapticEnabled } from "@/lib/haptic";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "FuelDesk — Sozlamalar" }] }),
@@ -47,12 +49,33 @@ function SettingsPage() {
     useSettings();
 
   const dialog = useDialog();
+  const { lang, setLang, t } = useI18n();
   const [name, setName] = useState("");
   const [qty, setQty] = useState("1");
   const [price, setPrice] = useState("");
   const [trash, setTrash] = useState<TrashShift[]>(() => loadJSON<TrashShift[]>(TRASH_SHIFTS_KEY, []));
 
+  // Haptic
+  const [hapticOn, setHapticOn] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try { const r = localStorage.getItem("fueldesk:haptic"); return r ? JSON.parse(r) : true; } catch { return true; }
+  });
+  useEffect(() => { setHapticEnabled(hapticOn); }, [hapticOn]);
+
+  // Telegram
+  const [tgChatId, setTgChatId] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("fueldesk:tgChatId") ?? "";
+  });
+  useEffect(() => { localStorage.setItem("fueldesk:tgChatId", tgChatId); }, [tgChatId]);
+
   const canAdd = useMemo(() => name.trim().length > 0, [name]);
+
+  const languages: { id: Lang; label: string; flag: string }[] = [
+    { id: "uz", label: "O'zbek", flag: "🇺🇿" },
+    { id: "ru", label: "Русский", flag: "🇷🇺" },
+    { id: "en", label: "English", flag: "🇬🇧" },
+  ];
 
   return (
     <div className="min-h-screen">
@@ -67,6 +90,97 @@ function SettingsPage() {
             Sozlamalar<span className="text-primary">.</span>
           </motion.h1>
           <p className="text-muted-foreground text-sm">Fuel narxlari va korzinka (local saqlanadi).</p>
+        </section>
+
+        {/* Language + Haptic */}
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="glass rounded-3xl border border-border/60 p-5">
+            <div className="text-[10px] uppercase tracking-widest text-muted-foreground">🌐 {t("common.language")}</div>
+            <div className="font-bold text-lg tracking-tight mb-3">{t("settings.language")}</div>
+            <div className="grid grid-cols-3 gap-2">
+              {languages.map((l) => (
+                <button
+                  key={l.id}
+                  onClick={() => { haptic("select"); setLang(l.id); }}
+                  className={`rounded-2xl border p-3 text-sm font-semibold transition-all ${
+                    lang === l.id
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border/60 bg-background/40 hover:border-primary/40"
+                  }`}
+                >
+                  <div className="text-2xl mb-1">{l.flag}</div>
+                  <div className="text-xs">{l.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="glass rounded-3xl border border-border/60 p-5">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">📳 Haptic</div>
+                <div className="font-bold text-lg tracking-tight">{t("settings.haptic")}</div>
+              </div>
+              <button
+                role="switch"
+                aria-checked={hapticOn}
+                onClick={() => { setHapticOn((v) => !v); haptic("tap"); }}
+                className={`relative w-14 h-8 rounded-full transition-colors shrink-0 ${
+                  hapticOn ? "grad-primary" : "bg-secondary border border-border/60"
+                }`}
+              >
+                <motion.span
+                  layout
+                  className="absolute top-1 left-1 h-6 w-6 rounded-full bg-background shadow-md"
+                  animate={{ x: hapticOn ? 24 : 0 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Tugmalarni bosganda qurilma yengil titraydi (Android/Chrome). iOS Safari qo'llab-quvvatlamaydi.
+            </p>
+          </div>
+        </section>
+
+        {/* Telegram */}
+        <section className="glass rounded-3xl border border-border/60 p-5 md:p-6">
+          <div className="flex items-end justify-between gap-3 mb-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">✈️ Telegram</div>
+              <div className="font-bold text-lg tracking-tight">{t("settings.telegram")}</div>
+            </div>
+            <span className={`text-[10px] px-2 py-1 rounded-full border ${tgChatId ? "border-success/40 text-success bg-success/10" : "border-border/60 text-muted-foreground"}`}>
+              {tgChatId ? "ON" : "OFF"}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">{t("settings.telegram.desc")}</p>
+          <div className="flex flex-col md:flex-row gap-2">
+            <input
+              value={tgChatId}
+              onChange={(e) => setTgChatId(e.target.value)}
+              placeholder={t("settings.telegram.chatId")}
+              className="flex-1 rounded-2xl border border-border/60 bg-background/50 px-4 py-3 text-sm outline-none focus:border-primary/60"
+            />
+            <button
+              onClick={async () => {
+                haptic("tap");
+                if (!tgChatId.trim()) {
+                  await dialog.alert({ title: "Chat ID kerak", message: "Avval Chat ID yoki @username kiriting.", tone: "warn" });
+                  return;
+                }
+                await dialog.alert({
+                  title: "Telegram ulanishi kerak",
+                  message:
+                    "Xabar yuborish uchun Telegram bot ulanishi kerak. Loyihada Telegram connector'ni yoqing yoki menga aytsangiz bot integratsiyasini sozlab beraman.",
+                  tone: "default",
+                });
+              }}
+              className="px-4 py-3 rounded-2xl grad-primary text-primary-foreground text-sm font-bold"
+            >
+              {t("settings.telegram.test")}
+            </button>
+          </div>
         </section>
 
         {/* Fuel prices */}

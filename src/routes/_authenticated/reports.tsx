@@ -1,9 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { NavBar } from "@/components/NavBar";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt, fmtSigned } from "@/lib/format";
+import { PullToRefresh } from "@/components/PullToRefresh";
+import { ReportsSkeleton } from "@/components/Skeleton";
+import { useI18n } from "@/hooks/useI18n";
+import { haptic } from "@/lib/haptic";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({ meta: [{ title: "FuelDesk — Hisobotlar" }] }),
@@ -55,12 +59,12 @@ function escapeHtml(value: unknown) {
 }
 
 function ReportsPage() {
-  // Auth removed: always show reports page
+  const { t } = useI18n();
   const [range, setRange] = useState<Range>("week");
   const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // user removed
+  const load = useCallback(async () => {
     const since = new Date();
     if (range === "day") since.setHours(0, 0, 0, 0);
     if (range === "week") since.setDate(since.getDate() - 7);
@@ -72,16 +76,15 @@ function ReportsPage() {
       .filter((r) => (r.created_at ? new Date(r.created_at) >= since : false))
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-    supabase
-      .from("shifts")
-      .select("id, shift_number, shift_date, created_at, total_revenue, total_paid, diff")
-      .gte("created_at", since.toISOString())
-      .order("created_at", { ascending: true })
-      .then(({ data, error }) => {
-        if (error) {
-          setRows(localFiltered);
-          return;
-        }
+    try {
+      const { data, error } = await supabase
+        .from("shifts")
+        .select("id, shift_number, shift_date, created_at, total_revenue, total_paid, diff")
+        .gte("created_at", since.toISOString())
+        .order("created_at", { ascending: true });
+      if (error) {
+        setRows(localFiltered);
+      } else {
         const remote = ((data as Row[]) ?? []).map((r) => ({
           ...r,
           total_revenue: Number((r as any).total_revenue ?? 0),
@@ -95,8 +98,18 @@ function ReportsPage() {
           (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
         );
         setRows(merged);
-      });
+      }
+    } catch {
+      setRows(localFiltered);
+    } finally {
+      setLoading(false);
+    }
   }, [range]);
+
+  useEffect(() => {
+    setLoading(true);
+    load();
+  }, [load]);
 
   const totals = useMemo(() => {
     const rev = rows.reduce((s, r) => s + Number(r.total_revenue), 0);
@@ -170,77 +183,88 @@ function ReportsPage() {
   return (
     <div className="min-h-screen">
       <NavBar />
-      <main className="max-w-6xl mx-auto px-5 py-8">
+      <main className="max-w-6xl mx-auto px-5 py-8 relative">
+        <PullToRefresh onRefresh={load}>
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-3xl md:text-4xl font-black tracking-tight mb-2"
         >
-          Hisobotlar<span className="text-primary">.</span>
+          {t("reports.title")}<span className="text-primary">.</span>
         </motion.h1>
         <p className="text-muted-foreground mb-6 text-sm">
           Smenalar bo'yicha statistika va grafiklar.
         </p>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-          <div className="flex gap-1 p-1 rounded-full bg-secondary/60 border border-border/60 w-fit">
-            {(
-              [
-                { id: "day", label: "Bugun" },
-                { id: "week", label: "Hafta" },
-                { id: "month", label: "Oy" },
-              ] as const
-            ).map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setRange(t.id)}
-                className={`relative px-4 py-1.5 text-xs font-semibold rounded-full ${
-                  range === t.id ? "grad-primary text-primary-foreground" : "text-muted-foreground"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <button onClick={exportPdf} className="px-3 py-2 rounded-xl border border-border/60 bg-secondary/40 text-xs font-semibold hover:border-primary/50 transition-colors">PDF</button>
-            <button onClick={exportExcel} className="px-3 py-2 rounded-xl border border-border/60 bg-secondary/40 text-xs font-semibold hover:border-accent/50 transition-colors">Excel</button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <Stat label="Smenalar" value={totals.count.toString()} />
-          <Stat label="Jami summa" value={fmt(totals.rev)} tone="primary" />
-          <Stat label="Jami to'lovlar" value={fmt(totals.paid)} tone="accent" />
-          <Stat
-            label="Umumiy farq"
-            value={fmtSigned(totals.diff)}
-            tone={totals.diff > 0 ? "success" : totals.diff < 0 ? "destructive" : "default"}
-          />
-        </div>
-
-        <div className="glass rounded-3xl border border-border/60 p-4 md:p-6">
-          <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
-            Daromad / To'lov dinamikasi
-          </div>
-          {chartData.length === 0 ? (
-            <div className="h-64 grid place-items-center text-muted-foreground text-sm">
-              Hozircha ma'lumot yo'q.
+        {loading ? (
+          <ReportsSkeleton />
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+              <div className="flex gap-1 p-1 rounded-full bg-secondary/60 border border-border/60 w-fit">
+                {(
+                  [
+                    { id: "day", label: t("reports.day") },
+                    { id: "week", label: t("reports.week") },
+                    { id: "month", label: t("reports.month") },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      haptic("select");
+                      setRange(tab.id);
+                    }}
+                    className={`relative px-4 py-1.5 text-xs font-semibold rounded-full ${
+                      range === tab.id ? "grad-primary text-primary-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { haptic("tap"); exportPdf(); }} className="px-3 py-2 rounded-xl border border-border/60 bg-secondary/40 text-xs font-semibold hover:border-primary/50 transition-colors">PDF</button>
+                <button onClick={() => { haptic("tap"); exportExcel(); }} className="px-3 py-2 rounded-xl border border-border/60 bg-secondary/40 text-xs font-semibold hover:border-accent/50 transition-colors">Excel</button>
+              </div>
             </div>
-          ) : (
-            <div className="h-64 flex items-end gap-2 overflow-x-auto pb-2" data-no-swipe>
-              {chartData.map((d) => (
-                <div key={d.date} className="min-w-14 flex-1 h-full flex flex-col justify-end gap-1">
-                  <div className="flex items-end gap-1 h-full px-1">
-                    <div title={`Summa: ${fmt(d.revenue)}`} className="flex-1 rounded-t-lg grad-primary min-h-1" style={{ height: `${Math.max(4, (d.revenue / maxChartValue) * 100)}%` }} />
-                    <div title={`To'lov: ${fmt(d.paid)}`} className="flex-1 rounded-t-lg bg-accent min-h-1" style={{ height: `${Math.max(4, (d.paid / maxChartValue) * 100)}%` }} />
-                  </div>
-                  <div className="text-[10px] text-muted-foreground text-center num-display">{d.date}</div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <Stat label={t("reports.shifts")} value={totals.count.toString()} />
+              <Stat label={t("reports.revenue")} value={fmt(totals.rev)} tone="primary" />
+              <Stat label={t("reports.paid")} value={fmt(totals.paid)} tone="accent" />
+              <Stat
+                label={t("reports.diff")}
+                value={fmtSigned(totals.diff)}
+                tone={totals.diff > 0 ? "success" : totals.diff < 0 ? "destructive" : "default"}
+              />
+            </div>
+
+            <div className="glass rounded-3xl border border-border/60 p-4 md:p-6">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+                {t("reports.dynamics")}
+              </div>
+              {chartData.length === 0 ? (
+                <div className="h-64 grid place-items-center text-muted-foreground text-sm">
+                  {t("reports.empty")}
                 </div>
-              ))}
+              ) : (
+                <div className="h-64 flex items-end gap-2 overflow-x-auto pb-2" data-no-swipe>
+                  {chartData.map((d) => (
+                    <div key={d.date} className="min-w-14 flex-1 h-full flex flex-col justify-end gap-1">
+                      <div className="flex items-end gap-1 h-full px-1">
+                        <div title={`${t("reports.revenue")}: ${fmt(d.revenue)}`} className="flex-1 rounded-t-lg grad-primary min-h-1" style={{ height: `${Math.max(4, (d.revenue / maxChartValue) * 100)}%` }} />
+                        <div title={`${t("reports.paid")}: ${fmt(d.paid)}`} className="flex-1 rounded-t-lg bg-accent min-h-1" style={{ height: `${Math.max(4, (d.paid / maxChartValue) * 100)}%` }} />
+                      </div>
+                      <div className="text-[10px] text-muted-foreground text-center num-display">{d.date}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
+        </PullToRefresh>
       </main>
     </div>
   );

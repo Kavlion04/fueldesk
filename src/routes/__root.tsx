@@ -10,9 +10,12 @@ import {
 import { AuthProvider } from "@/hooks/useAuth";
 import { SettingsProvider } from "@/hooks/useSettings";
 import { DialogProvider } from "@/hooks/useDialog";
+import { I18nProvider } from "@/hooks/useI18n";
 import { SplashScreen } from "@/components/SplashScreen";
 import { SwipeNavigator } from "@/components/SwipeNavigator";
 import { OfflineModal } from "@/components/OfflineModal";
+import { useEffect } from "react";
+import { initHaptic } from "@/lib/haptic";
 
 import appCss from "../styles.css?url";
 
@@ -129,16 +132,22 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    initHaptic();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <SettingsProvider>
-          <DialogProvider>
-            <SplashScreen />
-            <SwipeNavigator />
-            <OfflineModal />
-            <Outlet />
-          </DialogProvider>
+          <I18nProvider>
+            <DialogProvider>
+              <SplashScreen />
+              <SwipeNavigator />
+              <OfflineModal />
+              <Outlet />
+            </DialogProvider>
+          </I18nProvider>
         </SettingsProvider>
       </AuthProvider>
     </QueryClientProvider>
