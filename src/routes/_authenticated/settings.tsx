@@ -173,7 +173,7 @@ function SettingsPage() {
                   title: "Telegram ulanishi kerak",
                   message:
                     "Xabar yuborish uchun Telegram bot ulanishi kerak. Loyihada Telegram connector'ni yoqing yoki menga aytsangiz bot integratsiyasini sozlab beraman.",
-                  tone: "info",
+                  tone: "default",
                 });
               }}
               className="px-4 py-3 rounded-2xl grad-primary text-primary-foreground text-sm font-bold"
