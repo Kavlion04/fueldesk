@@ -1,9 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { NavBar } from "@/components/NavBar";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt, fmtSigned } from "@/lib/format";
+import { PullToRefresh } from "@/components/PullToRefresh";
+import { ReportsSkeleton } from "@/components/Skeleton";
+import { useI18n } from "@/hooks/useI18n";
+import { haptic } from "@/lib/haptic";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({ meta: [{ title: "FuelDesk — Hisobotlar" }] }),
@@ -55,12 +59,12 @@ function escapeHtml(value: unknown) {
 }
 
 function ReportsPage() {
-  // Auth removed: always show reports page
+  const { t } = useI18n();
   const [range, setRange] = useState<Range>("week");
   const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // user removed
+  const load = useCallback(async () => {
     const since = new Date();
     if (range === "day") since.setHours(0, 0, 0, 0);
     if (range === "week") since.setDate(since.getDate() - 7);
@@ -72,16 +76,15 @@ function ReportsPage() {
       .filter((r) => (r.created_at ? new Date(r.created_at) >= since : false))
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-    supabase
-      .from("shifts")
-      .select("id, shift_number, shift_date, created_at, total_revenue, total_paid, diff")
-      .gte("created_at", since.toISOString())
-      .order("created_at", { ascending: true })
-      .then(({ data, error }) => {
-        if (error) {
-          setRows(localFiltered);
-          return;
-        }
+    try {
+      const { data, error } = await supabase
+        .from("shifts")
+        .select("id, shift_number, shift_date, created_at, total_revenue, total_paid, diff")
+        .gte("created_at", since.toISOString())
+        .order("created_at", { ascending: true });
+      if (error) {
+        setRows(localFiltered);
+      } else {
         const remote = ((data as Row[]) ?? []).map((r) => ({
           ...r,
           total_revenue: Number((r as any).total_revenue ?? 0),
@@ -95,8 +98,18 @@ function ReportsPage() {
           (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
         );
         setRows(merged);
-      });
+      }
+    } catch {
+      setRows(localFiltered);
+    } finally {
+      setLoading(false);
+    }
   }, [range]);
+
+  useEffect(() => {
+    setLoading(true);
+    load();
+  }, [load]);
 
   const totals = useMemo(() => {
     const rev = rows.reduce((s, r) => s + Number(r.total_revenue), 0);
