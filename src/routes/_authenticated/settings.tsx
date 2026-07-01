@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { NavBar } from "@/components/NavBar";
 import { fmt } from "@/lib/format";
 import { DEFAULT_FUEL_PRICES, type FuelId, useSettings } from "@/hooks/useSettings";
 import { useDialog } from "@/hooks/useDialog";
+import { useI18n, type Lang } from "@/hooks/useI18n";
+import { haptic, setHapticEnabled } from "@/lib/haptic";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "FuelDesk — Sozlamalar" }] }),
@@ -47,12 +49,33 @@ function SettingsPage() {
     useSettings();
 
   const dialog = useDialog();
+  const { lang, setLang, t } = useI18n();
   const [name, setName] = useState("");
   const [qty, setQty] = useState("1");
   const [price, setPrice] = useState("");
   const [trash, setTrash] = useState<TrashShift[]>(() => loadJSON<TrashShift[]>(TRASH_SHIFTS_KEY, []));
 
+  // Haptic
+  const [hapticOn, setHapticOn] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try { const r = localStorage.getItem("fueldesk:haptic"); return r ? JSON.parse(r) : true; } catch { return true; }
+  });
+  useEffect(() => { setHapticEnabled(hapticOn); }, [hapticOn]);
+
+  // Telegram
+  const [tgChatId, setTgChatId] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("fueldesk:tgChatId") ?? "";
+  });
+  useEffect(() => { localStorage.setItem("fueldesk:tgChatId", tgChatId); }, [tgChatId]);
+
   const canAdd = useMemo(() => name.trim().length > 0, [name]);
+
+  const languages: { id: Lang; label: string; flag: string }[] = [
+    { id: "uz", label: "O'zbek", flag: "🇺🇿" },
+    { id: "ru", label: "Русский", flag: "🇷🇺" },
+    { id: "en", label: "English", flag: "🇬🇧" },
+  ];
 
   return (
     <div className="min-h-screen">
