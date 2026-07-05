@@ -28,11 +28,12 @@ export function NavBar() {
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/60 border-b border-border/60">
-      <div className="max-w-6xl mx-auto px-5 py-4 flex items-center justify-between gap-3">
-        <Link to="/" className="flex items-center gap-2.5 group shrink-0" onClick={() => haptic("tap")}>
+      <div className="max-w-6xl mx-auto px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-2 min-w-0">
+        <Link to="/" className="flex items-center gap-2 group shrink-0" onClick={() => haptic("tap")}>
           <motion.div
             whileHover={{ rotate: 12 }}
-            className="h-9 w-9 rounded-xl grad-primary glow grid place-items-center text-primary-foreground font-black"
+            className="h-9 w-9 rounded-xl grad-primary glow grid place-items-center text-primary-foreground font-black shrink-0"
+
           >
             ⛽
           </motion.div>
