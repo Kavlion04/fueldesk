@@ -475,11 +475,12 @@ function HomePage() {
   };
 
   return (
-    <div className="min-h-screen relative">
+    <div className="min-h-screen relative overflow-x-hidden">
       <SkyScene />
       <AnimatePresence>{saving && <FuelLoaderOverlay label="Smena saqlanmoqda…" />}</AnimatePresence>
       <NavBar />
-      <main className="relative z-10 max-w-6xl mx-auto px-5 py-8">
+      <main className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-5 py-6 sm:py-8">
+
 
         <section className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-8">
           <div>
