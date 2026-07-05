@@ -18,7 +18,7 @@ const GRADIENTS: Record<Phase, string> = {
 };
 
 export function SkyScene() {
-  const [phase, setPhase] = useState<Phase>(() => getPhase(new Date().getHours()));
+  const [phase, setPhase] = useState<Phase | null>(null);
 
   useEffect(() => {
     const tick = () => setPhase(getPhase(new Date().getHours()));
@@ -26,6 +26,15 @@ export function SkyScene() {
     const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
   }, []);
+
+  if (!phase) {
+    return (
+      <div
+        className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[55vh] overflow-hidden"
+        aria-hidden
+      />
+    );
+  }
 
   const isNight = phase === "night";
   const isDay = phase === "day" || phase === "dawn";
@@ -35,6 +44,7 @@ export function SkyScene() {
       className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[55vh] overflow-hidden"
       aria-hidden
     >
+
       <motion.div
         key={phase}
         className="absolute inset-0"

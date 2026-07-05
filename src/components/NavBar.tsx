@@ -28,11 +28,12 @@ export function NavBar() {
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/60 border-b border-border/60">
-      <div className="max-w-6xl mx-auto px-5 py-4 flex items-center justify-between gap-3">
-        <Link to="/" className="flex items-center gap-2.5 group shrink-0" onClick={() => haptic("tap")}>
+      <div className="max-w-6xl mx-auto px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-2 min-w-0">
+        <Link to="/" className="flex items-center gap-2 group shrink-0" onClick={() => haptic("tap")}>
           <motion.div
             whileHover={{ rotate: 12 }}
-            className="h-9 w-9 rounded-xl grad-primary glow grid place-items-center text-primary-foreground font-black"
+            className="h-9 w-9 rounded-xl grad-primary glow grid place-items-center text-primary-foreground font-black shrink-0"
+
           >
             ⛽
           </motion.div>
@@ -43,8 +44,9 @@ export function NavBar() {
             </div>
           </div>
         </Link>
-        <div className="flex items-center gap-2">
-          <nav className="flex gap-1 p-1 rounded-full bg-secondary/60 border border-border/60">
+        <div className="flex items-center gap-1.5 min-w-0 shrink">
+          <nav className="flex gap-0.5 p-1 rounded-full bg-secondary/60 border border-border/60 overflow-x-auto max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+
             {tabs.map((tab) => {
               const active = pathname === tab.to;
               return (
@@ -52,7 +54,7 @@ export function NavBar() {
                   key={tab.to}
                   to={tab.to}
                   onClick={() => haptic("select")}
-                  className="relative px-3 py-1.5 text-xs font-semibold rounded-full"
+                  className="relative px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-semibold rounded-full whitespace-nowrap shrink-0"
                 >
                   {active && (
                     <motion.div
