@@ -54,7 +54,7 @@ export function NavBar() {
                   key={tab.to}
                   to={tab.to}
                   onClick={() => haptic("select")}
-                  className="relative px-3 py-1.5 text-xs font-semibold rounded-full"
+                  className="relative px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-semibold rounded-full whitespace-nowrap shrink-0"
                 >
                   {active && (
                     <motion.div
