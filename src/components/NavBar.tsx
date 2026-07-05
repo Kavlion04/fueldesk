@@ -44,8 +44,9 @@ export function NavBar() {
             </div>
           </div>
         </Link>
-        <div className="flex items-center gap-2">
-          <nav className="flex gap-1 p-1 rounded-full bg-secondary/60 border border-border/60">
+        <div className="flex items-center gap-1.5 min-w-0 shrink">
+          <nav className="flex gap-0.5 p-1 rounded-full bg-secondary/60 border border-border/60 overflow-x-auto max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+
             {tabs.map((tab) => {
               const active = pathname === tab.to;
               return (
